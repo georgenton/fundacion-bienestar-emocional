@@ -64,7 +64,8 @@ jobs:
           trap 'rm -f -- "$status_file"' EXIT
           jq -n --argjson now "$(date +%s)" '{status:"verified",captured_at:$now}' > "$status_file"
           bash scripts/devops/staging-status.sh host "$RUNNER_TEMP" 1 1 "$status_file"
-          jq -n --argjson now "$(date +%s)" '{status:"verified",captured_at:$now-86401}' > "$status_file"
+          stale_timestamp=$(( $(date +%s) - 86401 ))
+          jq -n --argjson captured "$stale_timestamp" '{status:"verified",captured_at:$captured}' > "$status_file"
           if bash scripts/devops/staging-status.sh host "$RUNNER_TEMP" 1 1 "$status_file"; then
             exit 1
           fi
