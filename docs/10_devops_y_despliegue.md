@@ -1,6 +1,6 @@
 # GitHub Actions, imágenes y staging sintético en Coolify
 
-**Estado: CI de fuentes y contenedores ejecutado satisfactoriamente; configuración y despliegue reales de staging pendientes.** La [auditoría independiente](12_auditoria_independiente_2026-11-24.md) enlaza los resultados observados y la reautenticación pendiente para guardar la protección de `main`. Un archivo Compose, un proyecto vacío en Coolify o un job aprobado no acreditan un despliegue ni habilitan atención de pacientes. Este bloque continúa limitado a datos ficticios.
+**Estado: CI, publicación por digest, handoff y primera promoción manual de staging sintético ejecutados satisfactoriamente.** La [evidencia de staging](13_evidencia_staging_2026-11-24.md) identifica la versión, imágenes y resultados observados; la [auditoría independiente](12_auditoria_independiente_2026-11-24.md) conserva la procedencia y los controles previos. Este despliegue no habilita atención de pacientes: continúa limitado a datos ficticios y conserva pendientes de respaldo, restauración y operación institucional.
 
 ## 1. Qué ejecuta cada flujo
 
@@ -65,7 +65,7 @@ Usar un proyecto y environment propios de FBE y la definición `infra/compose.st
 
 Antes del primer arranque, comprobar versión de Coolify, arquitectura, RAM y CPU disponibles, espacio e inodos, redes y recursos en funcionamiento. Las cuotas incluidas de 512 MiB y 0,5 CPU por servicio son límites iniciales propuestos, no una medición del consumo ni una reserva garantizada. El contenedor migrador tiene consumo temporal adicional. Ajustar también el PostgreSQL independiente con datos de uso reales; no cambiar el proxy global ni recursos ajenos para resolver un problema de FBE.
 
-### Recursos y variables pendientes de configuración real
+### Recursos y variables de la configuración real
 
 | Elemento | Configuración requerida |
 |---|---|
@@ -79,6 +79,8 @@ Antes del primer arranque, comprobar versión de Coolify, arquitectura, RAM y CP
 | Dominios | Asignar en Coolify los destinos `web:3000` y `api:3001`, DNS y TLS reales. |
 
 Los valores desconocidos no se incluyen en el repositorio. Crear o conectar la red privada adecuada en Coolify y verificar el nombre DNS real de PostgreSQL desde los contenedores. No asumir que el hostname `postgres` de CI existe en ese entorno.
+
+La primera promoción real configuró estos elementos en el almacén privado de Coolify, sin publicar sus valores. PostgreSQL y la Application Compose comparten la red predefinida del servidor además de la red aislada de la aplicación; el primer intento falló de forma segura hasta añadir esa conexión. Los nombres de recursos, comprobaciones y límites observados están en [docs/13](13_evidencia_staging_2026-11-24.md).
 
 Coolify distingue una Application Compose desde Git de un Service creado pegando una definición. Elegir y registrar el tipo real: sus endpoints y automatizaciones no son intercambiables. Para la Application desde Git, seleccionar este Compose y desactivar autodespliegues mientras la promoción sea manual. No confiar en una llamada de despliegue para seleccionar una versión de imagen que no se haya guardado antes. [Docker Compose en Coolify](https://coolify.io/docs/applications/builds/docker-compose).
 
@@ -105,4 +107,4 @@ Para rollback de aplicación, restaurar los digests de la entrega anterior únic
 
 Conservar el manifiesto operativo fuera del artefacto temporal de Actions antes de que expire. No ejecutar limpiezas globales de Docker en el servidor compartido. La limpieza `down --volumes` de este CI se limita a proyectos efímeros de runners alojados por GitHub; no es una instrucción para staging.
 
-Quedan por demostrar en el entorno real: publicación y descarga de GHCR por Coolify, interpretación del Compose de staging, permisos del rol de runtime, primera migración y actualización sucesiva en OVH, navegación autenticada, monitorización, alertas y restauración. El CI de fuentes y contenedores ya pasó en GitHub. La referencia de capacidad del host no demuestra disponibilidad de todos esos recursos. No se afirma alta disponibilidad, operación clínica, cumplimiento normativo ni coste cero por usar un VPS ya contratado.
+Ya se demostraron en el entorno real la descarga anónima de GHCR, la interpretación del Compose, el rol de runtime sin DDL, la primera migración, HTTPS y el recorrido autenticado con perfiles sintéticos. Continúan pendientes una migración sucesiva con cambio de esquema, monitorización, alertas, respaldo externo y restauración comprobada. La capacidad disponible observada es reducida y no demuestra margen para crecimiento. No se afirma alta disponibilidad, operación clínica, cumplimiento normativo ni coste cero por usar un VPS ya contratado.

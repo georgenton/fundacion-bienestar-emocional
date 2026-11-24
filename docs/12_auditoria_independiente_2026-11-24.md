@@ -46,7 +46,7 @@ La preparación DevOps incorpora:
 - Validación del run de CI y del manifiesto antes de preparar un handoff de staging.
 - Compose independiente para Coolify, documentación de secretos, permisos de base, migración y recuperación.
 
-El workflow `Prepare staging handoff` no despliega: prepara un artefacto verificable. La integración automática con la API de Coolify continúa pendiente de configurar y comprobar el recurso real. El [runbook](10_devops_y_despliegue.md) y [ADR-0002](adr/0002_devops_github_actions_coolify.md) describen decisiones y límites.
+El workflow `Prepare staging handoff` no despliega: prepara un artefacto verificable. La primera promoción se realizó manualmente después de validar ese artefacto; la integración automática con la API de Coolify continúa sin implementarse. El [runbook](10_devops_y_despliegue.md), la [evidencia de staging](13_evidencia_staging_2026-11-24.md) y [ADR-0002](adr/0002_devops_github_actions_coolify.md) describen decisiones y límites.
 
 ## Verificación independiente antes de CI alojado
 
@@ -86,7 +86,11 @@ Repositorio público creado: [georgenton/fundacion-bienestar-emocional](https://
 
 Configuraciones comprobadas en GitHub antes de la primera publicación completa: acciones con SHA completo obligatorio, token de lectura por defecto, aprobación para contribuciones externas de forks, retención de 14 días y environment `staging` limitado a la rama `main`. No se exige un revisor adicional para esta operación individual autorizada.
 
-En Coolify se creó un proyecto propio de la fundación y su environment `staging`, todavía sin recursos desplegados. No se modificaron el proxy global ni aplicaciones ajenas. Sus identificadores y dirección de administración no se publican aquí.
+En Coolify se creó un proyecto propio de la fundación y su environment `staging`. El 24 de noviembre se configuraron y desplegaron manualmente PostgreSQL y la Application Compose de FBE con datos sintéticos. No se modificaron el proxy global ni aplicaciones ajenas. Sus identificadores y dirección de administración no se publican aquí; los nombres, versión y resultados no secretos están en [docs/13](13_evidencia_staging_2026-11-24.md).
+
+### Primera promoción real de staging
+
+El commit `0438bf99615d2ccc74e6c97034dafdf4ebea3760` se publicó, validó mediante handoff y promovió por los tres digests registrados. El migrador terminó con código cero, la API y web quedaron saludables, TLS fue válido y el recorrido HTTPS sintético confirmó la separación de recepción, profesional, paciente y soporte. La promoción conserva autodespliegue deshabilitado y no habilita pacientes. Véase la [evidencia exacta](13_evidencia_staging_2026-11-24.md).
 
 ### Primera ejecución alojada comprobada
 
@@ -108,11 +112,11 @@ Esta comprobación acredita la configuración observada en ese momento; no convi
 
 ## Límites que permanecen
 
-- Falta comprobar navegación autenticada, TLS y cookies en el dominio real. Las integrales PostgreSQL y el smoke Docker sí se ejecutaron en el CI enlazado.
+- Navegación autenticada, TLS y cookies ya se comprobaron con identidades sintéticas en los dominios de staging; faltan respaldo/restauración y monitorización operativa.
 - El enlace de invitación apunta a `/activate`, cuya pantalla aún no existe. Activación y respaldos MFA están verificados por API; no se presenta un recorrido visual completo.
 - No están implementados el correo institucional ni el procedimiento validado para perder todos los factores MFA.
 - El módulo worker comparte política y pruebas, pero no representa un servicio daemon desplegable.
-- Faltan orígenes HTTPS reales, base privada y sus roles, secretos de staging, imágenes publicadas y aplicación Coolify configurada para afirmar un despliegue.
+- Los orígenes HTTPS, base privada, roles, secretos de staging, imágenes y Application Coolify ya están configurados. El texto visual de la web aún identifica el entorno como local y debe corregirse en otra entrega.
 - Los tags exactos de las imágenes base aún no se fijan por digest; la imagen API todavía incluye dependencias de desarrollo. No se afirma reproducibilidad byte a byte ni una imagen mínima.
 - Un esquema de auditoría append-only no vuelve los datos inmutables frente al dueño de la infraestructura.
 - Agenda, expedientes clínicos, pagos y video siguen fuera del bloque 1. Esta revisión no autoriza atención de pacientes ni certifica cumplimiento sanitario o jurídico.
