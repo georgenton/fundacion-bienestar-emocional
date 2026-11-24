@@ -88,11 +88,25 @@ Configuraciones comprobadas en GitHub antes de la primera publicación completa:
 
 En Coolify se creó un proyecto propio de la fundación y su environment `staging`, todavía sin recursos desplegados. No se modificaron el proxy global ni aplicaciones ajenas. Sus identificadores y dirección de administración no se publican aquí.
 
-La primera ejecución de CI alojado y las reglas de protección de `main` se registrarán con enlaces y resultados observados. Este apartado no los anticipa como aprobados.
+### Primera ejecución alojada comprobada
+
+[PR #1](https://github.com/georgenton/fundacion-bienestar-emocional/pull/1), commit `7705ea14f50bb89e7bcddfe8eee506a64a1bbecb`, [CI run 45443742642](https://github.com/georgenton/fundacion-bienestar-emocional/actions/runs/45443742642): **completado con éxito** el 24 de noviembre de 2026.
+
+| Job | Evidencia observada |
+|---|---|
+| `verify-block-1` | Instalación congelada, tres migraciones desde PostgreSQL efímero nuevo, generación/compilación, lint, 15 pruebas sin DB, 16 integrales PostgreSQL, escaneo de registros, build completo y 20 pruebas de promoción: aprobados. |
+| `docker-verify` | Construcción de API, migrador y web; migración previa al arranque; PostgreSQL y API saludables; página sintética accesible y casos anónimos rechazados: aprobado. |
+| `publish-images` | Omitido según diseño: el evento era PR y la publicación no está habilitada. No existen todavía digests publicados de esta entrega. |
+
+Son **51 pruebas automáticas aprobadas**, además de las comprobaciones de build y contenedores. Los logs revisados muestran el resultado del escaneo antes de terminar la demostración. Esta ejecución prueba los contenedores en un runner de GitHub; no prueba el proxy, TLS, cookies o capacidad de OVH.
+
+### Protección de main pendiente de reautenticación
+
+Se preparó una regla activa para la rama predeterminada `main`: PR obligatorio, checks `verify-block-1` y `docker-verify`, rama actualizada, resolución de conversaciones, bloqueo de borrado y force-push, sin bypass y con cero revisiones externas obligatorias para la operación individual. Al pulsar guardar, GitHub mostró **Confirm access** y solicitó reautenticación del titular. No se afirma que esa regla esté guardada o vigente. El titular debe completar esa comprobación y volver a verificar el guardado; no se sustituye por una autorización escrita ni se elude desde otro canal.
 
 ## Límites que permanecen
 
-- Falta ejecutar y observar las 16 integrales y el smoke Docker del commit público, así como la navegación autenticada en un dominio real.
+- Falta comprobar navegación autenticada, TLS y cookies en el dominio real. Las integrales PostgreSQL y el smoke Docker sí se ejecutaron en el CI enlazado.
 - El enlace de invitación apunta a `/activate`, cuya pantalla aún no existe. Activación y respaldos MFA están verificados por API; no se presenta un recorrido visual completo.
 - No están implementados el correo institucional ni el procedimiento validado para perder todos los factores MFA.
 - El módulo worker comparte política y pruebas, pero no representa un servicio daemon desplegable.

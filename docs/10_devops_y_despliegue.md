@@ -1,6 +1,6 @@
 # GitHub Actions, imágenes y staging sintético en Coolify
 
-**Estado de este diseño: preparado en código; requiere ejecución de CI y configuración real del entorno.** Un archivo Compose, un proyecto vacío en Coolify o un job aprobado no acreditan un despliegue ni habilitan atención de pacientes. Este bloque continúa limitado a datos ficticios.
+**Estado: CI de fuentes y contenedores ejecutado satisfactoriamente; configuración y despliegue reales de staging pendientes.** La [auditoría independiente](12_auditoria_independiente_2026-11-24.md) enlaza los resultados observados y la reautenticación pendiente para guardar la protección de `main`. Un archivo Compose, un proyecto vacío en Coolify o un job aprobado no acreditan un despliegue ni habilitan atención de pacientes. Este bloque continúa limitado a datos ficticios.
 
 ## 1. Qué ejecuta cada flujo
 
@@ -105,4 +105,4 @@ Para rollback de aplicación, restaurar los digests de la entrega anterior únic
 
 Conservar el manifiesto operativo fuera del artefacto temporal de Actions antes de que expire. No ejecutar limpiezas globales de Docker en el servidor compartido. La limpieza `down --volumes` de este CI se limita a proyectos efímeros de runners alojados por GitHub; no es una instrucción para staging.
 
-Quedan por demostrar en el entorno real: build y ejecución completos de Actions, descarga de GHCR por Coolify, interpretación de Compose, permisos del rol de runtime, primera migración y actualización sucesiva, navegación autenticada, monitorización, alertas y restauración. La referencia de capacidad del host no demuestra disponibilidad de todos esos recursos. No se afirma alta disponibilidad, operación clínica, cumplimiento normativo ni coste cero por usar un VPS ya contratado.
+Quedan por demostrar en el entorno real: publicación y descarga de GHCR por Coolify, interpretación del Compose de staging, permisos del rol de runtime, primera migración y actualización sucesiva en OVH, navegación autenticada, monitorización, alertas y restauración. El CI de fuentes y contenedores ya pasó en GitHub. La referencia de capacidad del host no demuestra disponibilidad de todos esos recursos. No se afirma alta disponibilidad, operación clínica, cumplimiento normativo ni coste cero por usar un VPS ya contratado.
