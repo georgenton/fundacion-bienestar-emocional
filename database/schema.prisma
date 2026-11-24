@@ -1,0 +1,264 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../packages/database/src/generated"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum AccountStatus {
+  INVITED
+  ACTIVE
+  DISABLED
+}
+
+enum CaseStatus {
+  OPEN
+  PAUSED
+  CLOSED
+}
+
+enum ParticipantKind {
+  PATIENT
+  OTHER_PARTICIPANT
+  REPRESENTATIVE
+}
+
+enum AssignmentFunction {
+  TREATING_PROFESSIONAL
+  SUPERVISOR
+  INTERN
+}
+
+enum AuditDecision {
+  ALLOWED
+  DENIED
+  ERROR
+}
+
+model AuthUser {
+  id               String          @id
+  name             String
+  email            String          @unique
+  emailVerified    Boolean         @default(false)
+  image            String?
+  twoFactorEnabled Boolean         @default(false)
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+  sessions         AuthSession[]
+  authAccounts     AuthAccount[]
+  twoFactors       AuthTwoFactor[]
+  userAccount      UserAccount?
+
+  @@map("user")
+}
+
+model AuthSession {
+  id        String   @id
+  expiresAt DateTime
+  token     String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  ipAddress String?
+  userAgent String?
+  userId    String
+  mfaVerified Boolean @default(false)
+  user      AuthUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("session")
+}
+
+model AuthAccount {
+  id                    String    @id
+  accountId             String
+  providerId            String
+  userId                String
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  password              String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+  user                  AuthUser  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([providerId, accountId])
+  @@index([userId])
+  @@map("account")
+}
+
+model AuthVerification {
+  id         String   @id
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([identifier])
+  @@map("verification")
+}
+
+model AuthTwoFactor {
+  id                      String    @id
+  secret                  String
+  backupCodes             String
+  verified                Boolean   @default(false)
+  failedVerificationCount Int       @default(0)
+  lockedUntil             DateTime?
+  userId                  String
+  user                    AuthUser  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("twoFactor")
+}
+
+model Person {
+  id           String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  displayName  String
+  contactEmail String?           @unique
+  synthetic    Boolean           @default(true)
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+  userAccount  UserAccount?
+  participants CaseParticipant[]
+}
+
+model UserAccount {
+  id              String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  authUserId      String              @unique
+  personId        String              @unique @db.Uuid
+  status          AccountStatus       @default(INVITED)
+  mfaRequired     Boolean             @default(false)
+  disabledAt      DateTime?
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+  authUser        AuthUser            @relation(fields: [authUserId], references: [id], onDelete: Restrict)
+  person          Person              @relation(fields: [personId], references: [id], onDelete: Restrict)
+  roles           AccountRole[]
+  assignments     CaseAssignment[]
+  auditEvents     AuditEvent[]
+  sentInvitations AccountInvitation[] @relation("InvitationSender")
+
+  @@index([status])
+}
+
+model Role {
+  id           String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  code         String              @unique
+  description  String
+  isStaff      Boolean             @default(false)
+  isClinical   Boolean             @default(false)
+  capabilities RoleCapability[]
+  accounts     AccountRole[]
+  invitations  AccountInvitation[]
+}
+
+model AccountInvitation {
+  id                 String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tokenDigest        String      @unique
+  email              String
+  displayName        String
+  roleId             String      @db.Uuid
+  invitedByAccountId String      @db.Uuid
+  expiresAt          DateTime
+  usedAt             DateTime?
+  createdAt          DateTime    @default(now())
+  role               Role        @relation(fields: [roleId], references: [id], onDelete: Restrict)
+  invitedBy          UserAccount @relation("InvitationSender", fields: [invitedByAccountId], references: [id], onDelete: Restrict)
+
+  @@index([email])
+  @@index([expiresAt, usedAt])
+}
+
+model Capability {
+  id          String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  code        String           @unique
+  description String
+  roles       RoleCapability[]
+}
+
+model RoleCapability {
+  roleId       String     @db.Uuid
+  capabilityId String     @db.Uuid
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  capability   Capability @relation(fields: [capabilityId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, capabilityId])
+}
+
+model AccountRole {
+  accountId String      @db.Uuid
+  roleId    String      @db.Uuid
+  startsAt  DateTime    @default(now())
+  endsAt    DateTime?
+  account   UserAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  role      Role        @relation(fields: [roleId], references: [id], onDelete: Restrict)
+
+  @@id([accountId, roleId, startsAt])
+  @@index([accountId, startsAt, endsAt])
+}
+
+model CareCase {
+  id            String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  referenceCode String            @unique
+  status        CaseStatus        @default(OPEN)
+  synthetic     Boolean           @default(true)
+  openedAt      DateTime          @default(now())
+  closedAt      DateTime?
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+  participants  CaseParticipant[]
+  assignments   CaseAssignment[]
+}
+
+model CaseParticipant {
+  id           String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  caseId       String          @db.Uuid
+  personId     String          @db.Uuid
+  kind         ParticipantKind
+  portalAccess Boolean         @default(false)
+  startsAt     DateTime        @default(now())
+  endsAt       DateTime?
+  careCase     CareCase        @relation(fields: [caseId], references: [id], onDelete: Restrict)
+  person       Person          @relation(fields: [personId], references: [id], onDelete: Restrict)
+
+  @@unique([caseId, personId, kind])
+  @@index([personId, startsAt, endsAt])
+}
+
+model CaseAssignment {
+  id             String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  caseId         String             @db.Uuid
+  accountId      String             @db.Uuid
+  function       AssignmentFunction
+  allowedActions String[]
+  startsAt       DateTime
+  endsAt         DateTime?
+  revokedAt      DateTime?
+  careCase       CareCase           @relation(fields: [caseId], references: [id], onDelete: Restrict)
+  account        UserAccount        @relation(fields: [accountId], references: [id], onDelete: Restrict)
+
+  @@index([caseId, accountId, startsAt, endsAt, revokedAt])
+}
+
+model AuditEvent {
+  id             BigInt        @id @default(autoincrement())
+  actorAccountId String?       @db.Uuid
+  action         String
+  capability     String?
+  resourceType   String
+  resourceId     String?
+  decision       AuditDecision
+  reasonCode     String
+  context        Json?
+  occurredAt     DateTime      @default(now())
+  actorAccount   UserAccount?  @relation(fields: [actorAccountId], references: [id], onDelete: SetNull)
+
+  @@index([occurredAt])
+  @@index([actorAccountId, occurredAt])
+}

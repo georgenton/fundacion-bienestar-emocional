@@ -1,0 +1,42 @@
+{
+  "name": "fbe-platform",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Base local sintética de la Plataforma de la Fundación para el Bienestar Emocional",
+  "license": "UNLICENSED",
+  "packageManager": "pnpm@10.34.9",
+  "engines": {
+    "node": ">=24.11.0 <25",
+    "pnpm": ">=10.34.9 <11"
+  },
+  "scripts": {
+    "build": "pnpm db:generate && pnpm -r --if-present build",
+    "packages:build": "pnpm db:generate && pnpm --filter @fbe/config build && pnpm --filter @fbe/database build && pnpm --filter @fbe/access-policy build && pnpm --filter @fbe/worker build",
+    "dev": "pnpm packages:build && pnpm --parallel --filter @fbe/api --filter @fbe/web dev",
+    "lint": "pnpm -r --if-present lint",
+    "test": "pnpm packages:build && pnpm --filter @fbe/api test",
+    "test:integration": "pnpm packages:build && pnpm --filter @fbe/api test:integration",
+    "db:generate": "prisma generate",
+    "db:migrate": "prisma migrate deploy",
+    "db:status": "prisma migrate status",
+    "db:seed": "pnpm packages:build && tsx database/seed.ts",
+    "env:init": "tsx scripts/init-env.ts",
+    "demo:verify": "tsx scripts/verify-demo.ts",
+    "logs:scan": "tsx scripts/scan-sensitive-output.ts",
+    "check": "pnpm lint && pnpm test && pnpm build && pnpm logs:scan"
+  },
+  "dependencies": {
+    "@fbe/access-policy": "workspace:*",
+    "@fbe/config": "workspace:*",
+    "@fbe/database": "workspace:*"
+  },
+  "devDependencies": {
+    "@better-auth/utils": "0.5.1",
+    "@types/node": "26.6.6",
+    "dotenv": "17.2.3",
+    "prisma": "7.10.1",
+    "tsx": "4.23.15",
+    "typescript": "6.0.3"
+  }
+}

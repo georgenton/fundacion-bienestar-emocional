@@ -1,0 +1,62 @@
+# Prepared for Coolify v4 Compose; no deployment is performed by this file.
+# Configure a separate private PostgreSQL resource, network and secrets first.
+# Every FBE_*_IMAGE must be the full digest reference from a validated handoff.
+services:
+  migrate:
+    image: ${FBE_MIGRATE_IMAGE:?Use the validated migration image digest}
+    environment:
+      DATABASE_URL: ${MIGRATION_DATABASE_URL:?Set the private migration connection}
+    restart: "no"
+    # Coolify extension for a successful one-off service, not a standard Compose key.
+    exclude_from_hc: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 512m
+    cpus: 0.5
+
+  api:
+    image: ${FBE_API_IMAGE:?Use the validated API image digest}
+    environment:
+      NODE_ENV: production
+      APP_ENV: production
+      APP_NAME: FBE-Staging-Synthetic
+      API_PORT: 3001
+      WEB_ORIGIN: ${WEB_ORIGIN:?Set the exact HTTPS web origin}
+      BETTER_AUTH_URL: ${BETTER_AUTH_URL:?Set the exact HTTPS API origin}
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?Generate an exclusive staging secret}
+      AUTH_RESET_TOKEN_TTL_SECONDS: 900
+      DATABASE_URL: ${DATABASE_URL:?Set the private runtime connection}
+      ALLOW_SYNTHETIC_SEED: "false"
+      SYNTHETIC_DATA_ONLY: "true"
+      LOG_LEVEL: info
+    expose: ["3001"]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    init: true
+    restart: unless-stopped
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 512m
+    cpus: 0.5
+    pids_limit: 128
+    stop_grace_period: 30s
+
+  web:
+    image: ${FBE_WEB_IMAGE:?Use the validated web image digest}
+    environment:
+      NODE_ENV: production
+      HOSTNAME: 0.0.0.0
+      PORT: 3000
+    expose: ["3000"]
+    depends_on:
+      api:
+        condition: service_healthy
+    init: true
+    restart: unless-stopped
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 512m
+    cpus: 0.5
+    pids_limit: 128
+    stop_grace_period: 30s

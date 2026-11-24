@@ -1,0 +1,162 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  CI: "true"
+  DOCKER_BUILD_RECORD_UPLOAD: "false"
+
+jobs:
+  verify-block-1:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      COMPOSE_PROJECT_NAME: fbe-verify-${{ github.run_id }}-${{ github.run_attempt }}
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 24.22.3
+          package-manager-cache: false
+      - run: corepack enable
+      - run: corepack prepare pnpm@10.34.9 --activate
+      - name: Locate pnpm store
+        id: pnpm-store
+        run: echo "path=$(pnpm store path --silent)" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ steps.pnpm-store.outputs.path }}
+          key: pnpm-${{ runner.os }}-${{ runner.arch }}-node24-pnpm10.34.9-${{ hashFiles('pnpm-lock.yaml') }}
+      - name: Generate masked ephemeral credentials
+        run: node scripts/devops/ci-env.mjs
+      - name: Start disposable authenticated PostgreSQL
+        run: docker compose --env-file .env -f infra/compose.ci.yaml up -d --wait postgres
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm db:migrate
+      - name: Generate Prisma and build workspace packages before type checking
+        run: pnpm packages:build
+      - run: pnpm lint
+      - run: pnpm test
+      - run: pnpm demo:verify
+      - run: pnpm build
+      - name: Verify release eligibility boundaries
+        run: node --test scripts/devops/release-validation.test.mjs
+      - name: Remove only this CI project's resources
+        if: always()
+        run: |
+          if [ -f .env ]; then
+            docker compose --env-file .env -f infra/compose.ci.yaml down --volumes --remove-orphans
+          fi
+
+  docker-verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    env:
+      COMPOSE_PROJECT_NAME: fbe-images-${{ github.run_id }}-${{ github.run_attempt }}
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 24.22.3
+          package-manager-cache: false
+      - name: Build images without registry credentials
+        uses: ./.github/actions/build-images
+        with:
+          image-prefix: fbe-ci
+          tag: local
+          public-api-origin: http://localhost:3001
+          push: "false"
+          load: "true"
+      - name: Generate masked ephemeral credentials
+        run: node scripts/devops/ci-env.mjs
+      - name: Start images after versioned migrations
+        run: docker compose --env-file .env -f infra/compose.ci.yaml up -d
+      - name: Verify container boot, health and anonymous access denial
+        run: node scripts/devops/smoke.mjs
+      - name: Remove only this CI project's resources
+        if: always()
+        run: |
+          if [ -f .env ]; then
+            docker compose --env-file .env -f infra/compose.ci.yaml down --volumes --remove-orphans
+          fi
+
+  publish-images:
+    needs: [verify-block-1, docker-verify]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.FBE_PUBLISH_IMAGES == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write
+    env:
+      COMPOSE_PROJECT_NAME: fbe-release-${{ github.run_id }}-${{ github.run_attempt }}
+      FBE_PUBLIC_API_ORIGIN: ${{ vars.FBE_PUBLIC_API_ORIGIN }}
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 24.22.3
+          package-manager-cache: false
+      - name: Validate source and real public API origin before publication
+        id: release
+        run: node scripts/devops/release-metadata.mjs inputs
+      - uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Publish images tagged with the full source SHA
+        id: images
+        uses: ./.github/actions/build-images
+        with:
+          image-prefix: ${{ steps.release.outputs.image_prefix }}
+          tag: sha-${{ github.sha }}
+          public-api-origin: ${{ steps.release.outputs.public_api_origin }}
+          push: "true"
+          load: "false"
+      - name: Generate masked ephemeral credentials
+        run: node scripts/devops/ci-env.mjs
+      - name: Verify the published images by digest
+        env:
+          FBE_API_IMAGE: ${{ steps.release.outputs.image_prefix }}-api@${{ steps.images.outputs.api-digest }}
+          FBE_MIGRATE_IMAGE: ${{ steps.release.outputs.image_prefix }}-migrate@${{ steps.images.outputs.migrate-digest }}
+          FBE_WEB_IMAGE: ${{ steps.release.outputs.image_prefix }}-web@${{ steps.images.outputs.web-digest }}
+        run: |
+          docker compose --env-file .env -f infra/compose.ci.yaml up -d
+          node scripts/devops/smoke.mjs
+      - name: Write the verified release manifest
+        env:
+          API_DIGEST: ${{ steps.images.outputs.api-digest }}
+          MIGRATE_DIGEST: ${{ steps.images.outputs.migrate-digest }}
+          WEB_DIGEST: ${{ steps.images.outputs.web-digest }}
+        run: node scripts/devops/release-metadata.mjs write
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: release-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: .local/release/release.json
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 14
+      - name: Remove only this CI project's resources
+        if: always()
+        run: |
+          if [ -f .env ]; then
+            docker compose --env-file .env -f infra/compose.ci.yaml down --volumes --remove-orphans
+          fi

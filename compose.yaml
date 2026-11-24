@@ -1,0 +1,65 @@
+name: fbe-synthetic-local
+
+services:
+  postgres:
+    image: postgres:18.7-bookworm
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:?run pnpm env:init first}
+      POSTGRES_USER: ${POSTGRES_USER:?run pnpm env:init first}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?run pnpm env:init first}
+    ports:
+      - "127.0.0.1:${POSTGRES_HOST_PORT:-55432}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+    volumes:
+      - fbe-postgres-data:/var/lib/postgresql
+    networks:
+      - fbe-private
+
+  api:
+    profiles: ["app"]
+    build:
+      context: .
+      dockerfile: infra/docker/api.Dockerfile
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?schema=public
+      API_PORT: 3001
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:${API_HOST_PORT:-3001}:3001"
+    networks:
+      - fbe-private
+
+  web:
+    profiles: ["app"]
+    build:
+      context: .
+      dockerfile: infra/docker/web.Dockerfile
+      args:
+        NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-http://localhost:3001}
+    environment:
+      NODE_ENV: production
+      HOSTNAME: 0.0.0.0
+      PORT: 3000
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:${WEB_HOST_PORT:-3000}:3000"
+    networks:
+      - fbe-private
+
+networks:
+  fbe-private:
+    driver: bridge
+
+volumes:
+  fbe-postgres-data:
+    name: fbe-synthetic-postgres-data
