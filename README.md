@@ -77,7 +77,7 @@ node --test scripts/devops/release-validation.test.mjs
 
 `demo:verify` vuelve a crear fixtures sintéticos, ejecuta el recorrido integral sobre PostgreSQL y examina el registro capturado contra los secretos generados, cabeceras de sesión y marcadores de contenido clínico. Cubre acceso permitido/denegado, cambio de identificador, listados, exportación, revocación con sesión abierta, desactivación de cuenta, invitación de un solo uso, recuperación expirada/no reutilizable y código de respaldo MFA de un solo uso.
 
-El CI reproduce migraciones, pruebas, escaneo y build en `.github/workflows/ci.yml`, y construye y arranca las imágenes en un job separado. La publicación GHCR requiere configuración explícita. El flujo manual de staging prepara referencias de imágenes verificadas; todavía no llama a Coolify. El estado observado de las ejecuciones se registra en la auditoría independiente. Aprobar CI no equivale a desplegar ni habilitar atención.
+El CI reproduce migraciones, pruebas, escaneo y build en `.github/workflows/ci.yml`, y construye y arranca las imágenes en un job separado. La publicación GHCR requiere configuración explícita. El flujo manual de staging prepara referencias de imágenes verificadas y no llama a Coolify por sí mismo. La primera promoción manual real y sus comprobaciones están en [docs/13_evidencia_staging_2026-11-24.md](docs/13_evidencia_staging_2026-11-24.md). Aprobar CI o desplegar este entorno sintético no equivale a habilitar atención.
 
 ## Límites de acceso demostrados
 
@@ -106,6 +106,7 @@ Las rutas clínicas devuelven `Cache-Control: no-store, private`. La API registr
 | `docs/10_devops_y_despliegue.md` | CI, GHCR, migraciones, Coolify, secretos y rollback. |
 | `docs/11_autorizaciones_codex_y_publicacion.md` | Mandato del usuario, conexiones y publicación con historia saneada. |
 | `docs/12_auditoria_independiente_2026-11-24.md` | Hallazgos, correcciones y evidencia de verificación independiente. |
+| `docs/13_evidencia_staging_2026-11-24.md` | Versión promovida, configuración observada, pruebas HTTPS y pendientes de staging. |
 | `docs/adr/0001_base_tecnica_identidad_y_autorizacion.md` | Decisiones técnicas adoptadas para el bloque 1. |
 | `docs/adr/0002_devops_github_actions_coolify.md` | Decisiones adoptadas para CI y preparación de staging. |
 | `prompts/03_github_devops_y_staging.md` | Instrucción de continuación para Codex sobre el repositorio público. |
