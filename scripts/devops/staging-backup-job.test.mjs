@@ -13,7 +13,13 @@ test('backup job reports success only after an identical S3 readback', (t) => {
   const status = join(tmp, 'status.json');
   mkdirSync(scratch);
   copyFileSync(new URL('./staging-backup-job.sh', import.meta.url), job);
-  writeFileSync(join(tmp, 'staging-backup.sh'), `printf 'fake ciphertext' > "$4"\n`);
+  writeFileSync(join(tmp, 'staging-backup.sh'), `
+if [[ "$TEST_TRANSPORT" = oversized ]]; then
+  dd if=/dev/zero of="$4" bs=1024 count=257 2>/dev/null
+else
+  printf 'fake ciphertext' > "$4"
+fi
+`);
   writeFileSync(join(tmp, 'aws'), `#!/usr/bin/env bash
 set -eu
 [[ "$1" = --endpoint-url && "$2" = https://backup.example.test && "$3 $4" = "s3 cp" ]]
@@ -24,6 +30,7 @@ if [[ "$5" = s3://* ]]; then
     cp "$TEST_OBJECT" "$6"
   fi
 else
+  [[ "$7 $8" = '--storage-class STANDARD' ]] || exit 90
   if [[ "$TEST_TRANSPORT" = fail ]]; then exit 89; fi
   cp "$5" "$TEST_OBJECT"
 fi
@@ -67,4 +74,9 @@ fi
   assert.equal(wrongDestination.result.status, 2);
   assert.equal(wrongDestination.recorded.status, 'failed');
   assert.equal(wrongDestination.result.stdout, '');
+
+  const oversized = run('oversized');
+  assert.equal(oversized.result.status, 1);
+  assert.equal(oversized.recorded.status, 'failed');
+  assert.match(oversized.result.stderr, /exceeds the 256 KiB staging budget/);
 });

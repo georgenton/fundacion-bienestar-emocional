@@ -8,6 +8,12 @@ El destino GitHub es [georgenton/fundacion-bienestar-emocional](https://github.c
 
 Esta autorización se mantiene durante el trabajo. No es necesario repetir una pregunta de permiso para cada archivo o corrección reversible. Si cambia materialmente el destino, la información que se hará pública, el costo o los recursos afectados, identificar ese cambio antes de actuar.
 
+### Cierre operativo de staging sintético
+
+El titular autorizó usar el destino R2 ya conectado para `fbe/staging/`, clase Standard, una copia cada 12 horas y retención de 30 días. El límite de costo adicional es US$0. El consumo y los permisos efectivos se comprueban antes de activar la programación. También autorizó preparar y probar una clave de recuperación dedicada con custodia fuera del OVH, restaurar la copia en una instancia aislada y configurar avisos de fallo y recuperación en un buzón corporativo existente de SyntaVera bajo su control. La identidad del buzón y los detalles de la custodia permanecen en sus registros privados.
+
+Los cambios del repositorio pueden fusionarse mediante PR una vez aprobadas las comprobaciones exigidas. La promoción en Coolify es manual y requiere medir capacidad y demostrar recuperación desde la copia externa. Las conexiones existentes se usan con los controles de autenticación de cada proveedor.
+
 ## Autorización, conexión y capacidad son elementos distintos
 
 1. **Autorización de la tarea:** queda registrada en el mandato del usuario y en `AGENTS.md`.

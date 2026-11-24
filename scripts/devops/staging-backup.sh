@@ -16,7 +16,9 @@ output=$4
 [[ "$recipient" =~ ^([A-Fa-f0-9]{40}|[A-Fa-f0-9]{64})$ ]]
 [[ "$output" == /*.gpg && ! -e "$output" && ! -L "$output" ]]
 
-for name in api.env migration.env roles.sql release.json; do
+material=(api.env migration.env roles.sql release.json)
+if [[ -e "$recovery/recovery.txt" ]]; then material+=(recovery.txt); fi
+for name in "${material[@]}"; do
   [[ -s "$recovery/$name" && -f "$recovery/$name" && ! -L "$recovery/$name" ]]
 done
 jq -e '
@@ -58,7 +60,7 @@ fi
 
 # Only ciphertext reaches the output directory. The recovery private key stays off-host.
 tar -C "$scratch" -cf - database.dump captured-at \
-  -C "$(cd "$recovery" && pwd -P)" api.env migration.env roles.sql release.json |
+  -C "$(cd "$recovery" && pwd -P)" "${material[@]}" |
   gpg --batch --yes --trust-model always --recipient "$recipient" \
     --output "$cipher_tmp" --encrypt
 # A hard link installs the complete file atomically and refuses an existing name.
