@@ -107,7 +107,7 @@ export default function Home() {
 
   return (
     <main>
-      <div className="environment">ENTORNO LOCAL · DATOS SINTÉTICOS · NO APTO PARA PACIENTES</div>
+      <div className="environment">ENTORNO DE PRUEBAS · DATOS SINTÉTICOS · NO APTO PARA PACIENTES</div>
       <section className="hero">
         <p className="eyebrow">Fundación para el Bienestar Emocional</p>
         <h1>Base verificable de identidad y acceso</h1>
