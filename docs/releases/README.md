@@ -6,6 +6,7 @@ Copias exactas del archivo `release.json` extraído de los artefactos originales
 |---|---|---|---|
 | [0438bf99615d2ccc74e6c97034dafdf4ebea3760.json](0438bf99615d2ccc74e6c97034dafdf4ebea3760.json) | [45452399716](https://github.com/georgenton/fundacion-bienestar-emocional/actions/runs/45452399716), intento 1 | `14948609248` | `a6e87576a7a7cc270b13e1d4041f19b01958a0de774837816ee3b1e32b589897` |
 | [2128263510525ae6fb1df9451bd550255a477795.json](2128263510525ae6fb1df9451bd550255a477795.json) | [45460708004](https://github.com/georgenton/fundacion-bienestar-emocional/actions/runs/45460708004), intento 1 | `14952269023` | `69479fbb2c70bf7192aeb4411582e53f26acebaa8f7e5ef649f3352415b92dcd` |
+| [0de373ac92b8facf611fd8ce03fe7daae03db649.json](0de373ac92b8facf611fd8ce03fe7daae03db649.json) | [45472954312](https://github.com/georgenton/fundacion-bienestar-emocional/actions/runs/45472954312), intento 1 | `14956204604` | `efb9e63bca6ff0cde30591a056b402f4c1c8eaa2b7d863d3fbfbb58bed056839` |
 
 Los artefactos originales tienen caducidad informada el 8 de diciembre de 2026. Los JSON conservan SHA, run, intento, origen público e imágenes por digest; no contienen credenciales.
 

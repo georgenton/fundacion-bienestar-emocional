@@ -54,6 +54,20 @@ jobs:
       - run: pnpm build
       - name: Verify release eligibility boundaries
         run: node --test scripts/devops/release-validation.test.mjs
+      - name: Verify staging operations scripts
+        run: |
+          for script in scripts/devops/staging-{backup,backup-job,recovery-drill,status}.sh; do
+            bash -n "$script"
+          done
+          node --test scripts/devops/staging-backup-job.test.mjs
+          status_file=$(mktemp)
+          trap 'rm -f -- "$status_file"' EXIT
+          jq -n --argjson now "$(date +%s)" '{status:"verified",captured_at:$now}' > "$status_file"
+          bash scripts/devops/staging-status.sh host "$RUNNER_TEMP" 1 1 "$status_file"
+          jq -n --argjson now "$(date +%s)" '{status:"verified",captured_at:$now-86401}' > "$status_file"
+          if bash scripts/devops/staging-status.sh host "$RUNNER_TEMP" 1 1 "$status_file"; then
+            exit 1
+          fi
       - name: Remove only this CI project's resources
         if: always()
         run: |
