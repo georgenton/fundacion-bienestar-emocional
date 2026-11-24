@@ -108,6 +108,7 @@ Las rutas clínicas devuelven `Cache-Control: no-store, private`. La API registr
 | `docs/12_auditoria_independiente_2026-11-24.md` | Hallazgos, correcciones y evidencia de verificación independiente. |
 | `docs/13_evidencia_staging_2026-11-24.md` | Versión promovida, configuración observada, pruebas HTTPS y pendientes de staging. |
 | `docs/14_revision_staging_y_cierre_operativo.md` | Revisión independiente, capacidad, respaldo, restauración y siguiente cierre. |
+| `docs/15_operacion_y_recuperacion_staging.md` | Inventario medido, ensayo aislado y procedimiento de respaldo y alertas. |
 | `docs/releases/README.md` | Manifiestos de imágenes conservados y procedencia de sus artefactos. |
 | `prompts/04_cierre_operativo_staging.md` | Encargo para completar recuperación y observabilidad de staging. |
 | `docs/adr/0001_base_tecnica_identidad_y_autorizacion.md` | Decisiones técnicas adoptadas para el bloque 1. |
