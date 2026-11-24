@@ -100,9 +100,11 @@ En Coolify se creó un proyecto propio de la fundación y su environment `stagin
 
 Son **51 pruebas automáticas aprobadas**, además de las comprobaciones de build y contenedores. Los logs revisados muestran el resultado del escaneo antes de terminar la demostración. Esta ejecución prueba los contenedores en un runner de GitHub; no prueba el proxy, TLS, cookies o capacidad de OVH.
 
-### Protección de main pendiente de reautenticación
+### Protección de main verificada
 
-Se preparó una regla activa para la rama predeterminada `main`: PR obligatorio, checks `verify-block-1` y `docker-verify`, rama actualizada, resolución de conversaciones, bloqueo de borrado y force-push, sin bypass y con cero revisiones externas obligatorias para la operación individual. Al pulsar guardar, GitHub mostró **Confirm access** y solicitó reautenticación del titular. No se afirma que esa regla esté guardada o vigente. El titular debe completar esa comprobación y volver a verificar el guardado; no se sustituye por una autorización escrita ni se elude desde otro canal.
+La reautenticación pendiente se completó fuera de esta revisión. El 24 de noviembre de 2026 se volvió a consultar el estado efectivo mediante la API de GitHub y se observó activo el ruleset `main · PR y CI obligatorios` (`28003758`), aplicado a la rama predeterminada: PR obligatorio, rama actualizada, resolución de conversaciones, checks `verify-block-1` y `docker-verify`, bloqueo de borrado y force-push, sin actores de bypass y con cero revisiones externas obligatorias para la operación individual. El environment `staging` conserva una política que admite únicamente la rama `main`.
+
+Esta comprobación acredita la configuración observada en ese momento; no convierte a un administrador del repositorio en un actor fuera del límite de confianza.
 
 ## Límites que permanecen
 
