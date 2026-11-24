@@ -7,14 +7,10 @@ if [[ $# != 4 ]]; then
   exit 2
 fi
 
-endpoint=${FBE_BACKUP_S3_ENDPOINT:?Set the authorized HTTPS storage endpoint}
-prefix=${FBE_BACKUP_S3_PREFIX:?Set the authorized S3 bucket and dedicated FBE prefix}
-[[ "$endpoint" =~ ^https://[A-Za-z0-9.-]+(:[0-9]+)?$ ]]
-[[ "$prefix" =~ ^s3://[a-z0-9][a-z0-9.-]+/fbe/staging/?$ ]]
 status=$4
 [[ "$status" == /* && ! -L "$status" ]]
 started=$(date +%s)
-work=$(mktemp -d "${TMPDIR:-/tmp}/fbe-upload.XXXXXXXX")
+work=
 status_tmp=
 verified=false
 
@@ -27,12 +23,24 @@ finish() {
   rc=$?
   if [[ "$verified" != true && -n "$status_tmp" ]]; then write_status failed || true; fi
   if [[ -n "$status_tmp" ]]; then rm -f -- "$status_tmp"; fi
-  rm -f -- "$work/backup.gpg" "$work/readback.gpg"
-  rmdir -- "$work"
+  if [[ -n "$work" ]]; then
+    rm -f -- "$work/backup.gpg" "$work/readback.gpg"
+    rmdir -- "$work"
+  fi
   exit "$rc"
 }
 trap finish EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
 status_tmp=$(mktemp "${status%/*}/.fbe-status.XXXXXXXX")
+endpoint=${FBE_BACKUP_S3_ENDPOINT:-}
+prefix=${FBE_BACKUP_S3_PREFIX:-}
+if [[ ! "$endpoint" =~ ^https://[A-Za-z0-9.-]+(:[0-9]+)?$ ||
+      ! "$prefix" =~ ^s3://[a-z0-9][a-z0-9.-]+/fbe/staging/?$ ]]; then
+  echo 'Set the authorized HTTPS storage endpoint and dedicated FBE prefix.' >&2
+  exit 2
+fi
+work=$(mktemp -d "${TMPDIR:-/tmp}/fbe-upload.XXXXXXXX")
 id="fbe-staging-$(date -u +%Y%m%dT%H%M%SZ)-${work##*.}"
 object="${prefix%/}/$id.gpg"
 backup="$work/backup.gpg"

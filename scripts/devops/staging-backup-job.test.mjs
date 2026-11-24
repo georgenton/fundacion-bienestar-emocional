@@ -29,14 +29,14 @@ else
 fi
 `, { mode: 0o700 });
 
-  function run(mode) {
+  function run(mode, endpoint = 'https://backup.example.test') {
     const result = spawnSync('bash', [job, 'fbe-db', 'fixture', 'fixture', status], {
       encoding: 'utf8',
       env: {
         ...process.env,
         PATH: [tmp, process.env.PATH].join(delimiter),
         TMPDIR: scratch,
-        FBE_BACKUP_S3_ENDPOINT: 'https://backup.example.test',
+        FBE_BACKUP_S3_ENDPOINT: endpoint,
         FBE_BACKUP_S3_PREFIX: 's3://fbe-fixture/fbe/staging/',
         TEST_TRANSPORT: mode,
         TEST_OBJECT: join(tmp, 'object'),
@@ -61,4 +61,10 @@ fi
     assert.equal(bad.result.stdout, '');
     assert.match(bad.result.stderr, /failed upload or integrity verification/);
   }
+
+  assert.equal(run('success').recorded.status, 'verified');
+  const wrongDestination = run('success', 'http://backup.example.test');
+  assert.equal(wrongDestination.result.status, 2);
+  assert.equal(wrongDestination.recorded.status, 'failed');
+  assert.equal(wrongDestination.result.stdout, '');
 });
