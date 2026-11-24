@@ -7,6 +7,13 @@ cd "$(dirname "$0")/../.."
 # Local-only rehearsal. Never use an existing database, network or volume.
 [[ "$(docker context show)" == desktop-linux && -z "${DOCKER_HOST:-}" && -z "${DOCKER_CONTEXT:-}" ]] ||
   { echo 'Use the local desktop-linux Docker context for this rehearsal.' >&2; exit 2; }
+endpoint=$(docker context inspect desktop-linux --format '{{.Endpoints.docker.Host}}') ||
+  { echo 'Cannot inspect the local Docker context.' >&2; exit 2; }
+[[ "$endpoint" == unix:///* ]] ||
+  { echo 'The rehearsal requires a local Unix socket, not a remote Docker endpoint.' >&2; exit 2; }
+# Pin every invocation, including the backup subprocess and cleanup, to this context.
+# A concurrent `docker context use` must not redirect the rehearsal to another daemon.
+export DOCKER_CONTEXT=desktop-linux
 before=docs/releases/0438bf99615d2ccc74e6c97034dafdf4ebea3760.json
 after=docs/releases/0de373ac92b8facf611fd8ce03fe7daae03db649.json
 work=$(mktemp -d "${TMPDIR:-/tmp}/fbe-drill.XXXXXXXX")

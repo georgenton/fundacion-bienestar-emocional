@@ -59,7 +59,7 @@ jobs:
           for script in scripts/devops/staging-{backup,backup-job,recovery-drill,status}.sh; do
             bash -n "$script"
           done
-          node --test scripts/devops/staging-backup-job.test.mjs
+          node --test scripts/devops/staging-backup-job.test.mjs scripts/devops/staging-recovery-context.test.mjs
           status_file=$(mktemp)
           trap 'rm -f -- "$status_file"' EXIT
           jq -n --argjson now "$(date +%s)" '{status:"verified",captured_at:$now}' > "$status_file"

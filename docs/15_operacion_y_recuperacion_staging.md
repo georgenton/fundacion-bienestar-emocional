@@ -44,6 +44,8 @@ Descargar el objeto verificado a un ejecutor separado, comprobar SHA-256, descif
 
 `bash scripts/devops/staging-recovery-drill.sh` crea dos PostgreSQL 18.7 desechables en redes internas distintas sin publicar puertos. Genera fixtures y una pareja de claves de un solo uso. El emisor recibe la clave pública. El receptor descifra una copia idéntica del archivo con la clave privada. El código y los tres digests se obtuvieron del registro público. La transferencia del ensayo fue entre directorios locales.
 
+La revisión independiente posterior corrigió la barrera del ejecutor: el nombre `desktop-linux` no demuestra que su endpoint sea local. El script ahora inspecciona ese endpoint, exige un socket Unix y fija `DOCKER_CONTEXT=desktop-linux` para todas las llamadas, incluidos el respaldo y la limpieza. CI comprueba con un sustituto local de Docker que SSH/TCP y los contextos no admitidos se rechazan antes de crear recursos, y que el contexto queda fijado. Estas pruebas no ejecutan Docker ni sustituyen el ensayo completo del Mac; las mediciones siguientes conservan el alcance de aquella ejecución.
+
 | Comprobación | Resultado |
 |---|---|
 | Datos restaurados | 3 migraciones, 8 personas y 2 casos sintéticos, 2 participantes, 3 asignaciones y evento centinela de auditoría. Identidad de los casos y conteo de claves foráneas validadas coincidentes. |
