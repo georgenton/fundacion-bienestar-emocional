@@ -56,7 +56,7 @@ jobs:
         run: node --test scripts/devops/release-validation.test.mjs
       - name: Verify staging operations scripts
         run: |
-          for script in scripts/devops/staging-{backup,backup-job,recovery-drill,status}.sh; do
+          for script in scripts/devops/staging-{backup,backup-job,recovery-drill,recovery-material,status}.sh; do
             bash -n "$script"
           done
           node --test scripts/devops/staging-backup-job.test.mjs scripts/devops/staging-recovery-context.test.mjs

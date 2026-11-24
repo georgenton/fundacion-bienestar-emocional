@@ -46,8 +46,13 @@ object="${prefix%/}/$id.gpg"
 backup="$work/backup.gpg"
 readback="$work/readback.gpg"
 bash "$(dirname "$0")/staging-backup.sh" "$1" "$2" "$3" "$backup"
+size=$(wc -c <"$backup")
+if (( size > 262144 )); then
+  echo 'FBE ciphertext exceeds the 256 KiB staging budget. Review R2 headroom before retrying.' >&2
+  exit 1
+fi
 
-if ! aws --endpoint-url "$endpoint" s3 cp "$backup" "$object" --only-show-errors >/dev/null 2>&1 ||
+if ! aws --endpoint-url "$endpoint" s3 cp "$backup" "$object" --storage-class STANDARD --only-show-errors >/dev/null 2>&1 ||
    ! aws --endpoint-url "$endpoint" s3 cp "$object" "$readback" --only-show-errors >/dev/null 2>&1 ||
    ! cmp -s "$backup" "$readback"; then
   echo 'FBE external backup failed upload or integrity verification.' >&2
