@@ -1,0 +1,61 @@
+name: Prepare staging handoff
+
+on:
+  workflow_dispatch:
+    inputs:
+      ci_run_id:
+        description: Successful push-to-main CI run that published the release artifact.
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: fbe-staging-handoff
+  cancel-in-progress: false
+
+jobs:
+  prepare-handoff:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    # Staging is manually dispatched and restricted to main in repository Settings.
+    # The authorized single-operator workflow does not require another reviewer.
+    environment: staging
+    env:
+      FBE_PUBLIC_API_ORIGIN: ${{ vars.FBE_PUBLIC_API_ORIGIN }}
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 24.22.3
+          package-manager-cache: false
+      - name: Verify the exact CI run and its source repository
+        id: guard
+        env:
+          CI_RUN_ID: ${{ inputs.ci_run_id }}
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/devops/release-validation.mjs run
+      - name: Download only that run's release manifest
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: ${{ steps.guard.outputs.artifact_name }}
+          run-id: ${{ steps.guard.outputs.run_id }}
+          github-token: ${{ github.token }}
+          path: .local/staging/artifact
+      - name: Verify digests, SHA, run attempt and built API origin
+        run: node scripts/devops/release-validation.mjs manifest
+      - name: Save the reviewable handoff without deploying
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: staging-handoff-${{ steps.guard.outputs.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            .local/staging/handoff.json
+            .local/staging/handoff.env
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 14

@@ -1,0 +1,80 @@
+name: Build FBE images
+description: Build the API, migration job and web from the checked-out source.
+inputs:
+  image-prefix:
+    description: Prefix before the component suffix, without tag.
+    required: true
+  tag:
+    description: SHA tag for publication, local tag for unprivileged verification.
+    required: true
+  public-api-origin:
+    description: Public API origin compiled into the browser bundle.
+    required: true
+  push:
+    description: Publish images only from a trusted main-branch job.
+    default: "false"
+  load:
+    description: Load images locally for smoke verification.
+    default: "true"
+outputs:
+  api-digest:
+    description: Published API digest.
+    value: ${{ steps.api.outputs.digest }}
+  migrate-digest:
+    description: Published migration digest.
+    value: ${{ steps.migrate.outputs.digest }}
+  web-digest:
+    description: Published web digest.
+    value: ${{ steps.web.outputs.digest }}
+runs:
+  using: composite
+  steps:
+    - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+    - name: Build API
+      id: api
+      uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+      with:
+        context: .
+        file: infra/docker/api.Dockerfile
+        target: runtime
+        platforms: linux/amd64
+        push: ${{ inputs.push }}
+        load: ${{ inputs.load }}
+        tags: ${{ inputs.image-prefix }}-api:${{ inputs.tag }}
+        labels: |
+          org.opencontainers.image.source=https://github.com/${{ github.repository }}
+          org.opencontainers.image.revision=${{ github.sha }}
+        cache-from: type=gha,scope=fbe-api
+        cache-to: type=gha,mode=max,scope=fbe-api
+    - name: Build migration job
+      id: migrate
+      uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+      with:
+        context: .
+        file: infra/docker/api.Dockerfile
+        target: migration
+        platforms: linux/amd64
+        push: ${{ inputs.push }}
+        load: ${{ inputs.load }}
+        tags: ${{ inputs.image-prefix }}-migrate:${{ inputs.tag }}
+        labels: |
+          org.opencontainers.image.source=https://github.com/${{ github.repository }}
+          org.opencontainers.image.revision=${{ github.sha }}
+        cache-from: type=gha,scope=fbe-migrate
+        cache-to: type=gha,mode=max,scope=fbe-migrate
+    - name: Build web with the selected API origin
+      id: web
+      uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+      with:
+        context: .
+        file: infra/docker/web.Dockerfile
+        platforms: linux/amd64
+        build-args: NEXT_PUBLIC_API_BASE_URL=${{ inputs.public-api-origin }}
+        push: ${{ inputs.push }}
+        load: ${{ inputs.load }}
+        tags: ${{ inputs.image-prefix }}-web:${{ inputs.tag }}
+        labels: |
+          org.opencontainers.image.source=https://github.com/${{ github.repository }}
+          org.opencontainers.image.revision=${{ github.sha }}
+        cache-from: type=gha,scope=fbe-web
+        cache-to: type=gha,mode=max,scope=fbe-web
