@@ -107,6 +107,9 @@ Las rutas clínicas devuelven `Cache-Control: no-store, private`. La API registr
 | `docs/11_autorizaciones_codex_y_publicacion.md` | Mandato del usuario, conexiones y publicación con historia saneada. |
 | `docs/12_auditoria_independiente_2026-11-24.md` | Hallazgos, correcciones y evidencia de verificación independiente. |
 | `docs/13_evidencia_staging_2026-11-24.md` | Versión promovida, configuración observada, pruebas HTTPS y pendientes de staging. |
+| `docs/14_revision_staging_y_cierre_operativo.md` | Revisión independiente, capacidad, respaldo, restauración y siguiente cierre. |
+| `docs/releases/README.md` | Manifiestos de imágenes conservados y procedencia de sus artefactos. |
+| `prompts/04_cierre_operativo_staging.md` | Encargo para completar recuperación y observabilidad de staging. |
 | `docs/adr/0001_base_tecnica_identidad_y_autorizacion.md` | Decisiones técnicas adoptadas para el bloque 1. |
 | `docs/adr/0002_devops_github_actions_coolify.md` | Decisiones adoptadas para CI y preparación de staging. |
 | `prompts/03_github_devops_y_staging.md` | Instrucción de continuación para Codex sobre el repositorio público. |
