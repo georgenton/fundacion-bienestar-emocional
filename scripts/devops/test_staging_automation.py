@@ -3,7 +3,7 @@ import io
 import json
 import os
 from pathlib import Path
-from shutil import copy2
+from shutil import copy2, which
 import subprocess
 import sys
 from tempfile import TemporaryDirectory
@@ -34,52 +34,80 @@ class StagingAutomationTests(unittest.TestCase):
                               text=True, check=False, timeout=20)
 
     def test_new_sessions_and_unavailable_issuer_block_upload(self):
-        header = self.script("header", "Authorization: Bearer fixture\n")
-        copy2(SCRIPTS / "staging-r2-credentials.sh", self.root)
-        copy2(SCRIPTS / "staging-backup-job.sh", self.root)
+        state = self.root / "state"
+        bin_dir = state / "bin"
+        bin_dir.mkdir(parents=True)
+        runtime = self.root / "runtime"
+        runtime.mkdir()
+        self.script("issuer-header", "Authorization: Bearer fixture\n")
+        for name in ("staging-backup-service.sh", "staging-r2-credentials.sh", "staging-backup-job.sh"):
+            copy2(SCRIPTS / name, self.root)
         self.script("staging-backup.sh", "printf 'ciphertext' > \"$4\"\n")
-        self.script("curl", """#!/usr/bin/env python3
-import datetime, json, os, pathlib, sys
-root = pathlib.Path(os.environ["FIXTURE_DIR"])
+        self.script("staging-backup-cycle.sh", """set -eu
+root=$(dirname "$0")
+printf '%s\\n' captured >>"$root/captures"
+bash "$root/staging-backup-job.sh" "$1" fixture fixture "$7"
+""")
+        self.script("stat", "#!/usr/bin/env bash\nprintf '%s\\n' tmpfs\n")
+        if not which("flock"):
+            self.script("flock", '#!/usr/bin/env bash\n[[ "$*" == "--nonblock 9" ]]\n')
+        (bin_dir / "jq").symlink_to(which("jq"))
+        (bin_dir / "python3").symlink_to(sys.executable)
+        self.script("state/bin/curl", """#!/usr/bin/env python3
+import datetime, json, pathlib, sys
+root = pathlib.Path(__file__).resolve().parents[2]
 counter = root / "counter"
 serial = int(counter.read_text()) + 1 if counter.exists() else 1
 counter.write_text(str(serial))
-mode = os.environ["ISSUER_MODE"]
+mode = (root / "issuer-mode").read_text()
 expiry = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(
-    minutes=-1 if mode == "expired" else 30)
+    minutes=5 if mode == "short" else 30)
 print(json.dumps({"Version": 1, "AccessKeyId": "fixture", "SecretAccessKey": "fixture",
     "SessionToken": "fixture-" + str(serial), "Expiration": expiry.strftime("%Y-%m-%dT%H:%M:%SZ")}))
 if mode == "unavailable":
     print("simulated confidential provider detail", file=sys.stderr)
     sys.exit(1)
 """)
-        self.script("aws", """#!/usr/bin/env bash
+        self.script("state/bin/aws", """#!/usr/bin/env bash
 set -eu
-session=$(bash "$FIXTURE_DIR/staging-r2-credentials.sh")
-jq -r '.SessionToken' <<<"$session" >>"$FIXTURE_DIR/sessions"
+[[ -z "${AWS_ACCESS_KEY_ID:-}" && "$AWS_SHARED_CREDENTIALS_FILE" == /dev/null ]]
+root=$(cd -- "$(dirname "$0")/../.." && pwd)
+read -r -a credential_process <<<"$(sed -n 's/^credential_process = //p' "$AWS_CONFIG_FILE")"
+session=$("${credential_process[@]}")
+jq -r '.SessionToken' <<<"$session" >>"$root/sessions"
 if [[ "$5" == s3://* ]]; then
-  cp "$FIXTURE_DIR/object" "$6"
+  cp "$root/object" "$6"
 else
-  cp "$5" "$FIXTURE_DIR/object"
+  cp "$5" "$root/object"
 fi
 """)
-        status = self.root / "status"
-        command = ("bash", str(self.root / "staging-backup-job.sh"), "db", "fixture", "fixture", str(status))
-        env = dict(FBE_R2_ISSUER_URL="https://issuer.example.test/session", FBE_R2_ISSUER_HEADER=str(header),
+        status = state / "status.json"
+        command = ("bash", str(self.root / "staging-backup-service.sh"))
+        env = dict(STATE_DIRECTORY=str(state), RUNTIME_DIRECTORY=str(runtime), CREDENTIALS_DIRECTORY=str(self.root),
+                   FBE_R2_ISSUER_URL="https://issuer.example.test/session", AWS_ACCESS_KEY_ID="operator-fixture",
                    FBE_BACKUP_S3_ENDPOINT="https://r2.example.test",
-                   FBE_BACKUP_S3_PREFIX="s3://fixture-bucket/fbe/staging/")
-        good = self.execute(*command, **env, ISSUER_MODE="valid")
-        self.assertEqual(good.returncode, 0, good.stderr)
-        self.assertEqual(json.loads(status.read_text())["status"], "verified")
-        self.assertEqual((self.root / "sessions").read_text().splitlines(), ["fixture-1", "fixture-2"])
-        for mode in ("expired", "unavailable"):
-            failure = self.execute(*command, **env, ISSUER_MODE=mode)
+                   FBE_BACKUP_S3_PREFIX="s3://fixture-bucket/fbe/staging/", FBE_PG_CONTAINER="db",
+                   FBE_API_CONTAINER="api", FBE_MIGRATE_CONTAINER="migrate", FBE_WEB_CONTAINER="web",
+                   FBE_RELEASE_MANIFEST="fixture", FBE_GPG_FINGERPRINT="fixture")
+        for _ in range(2):
+            (self.root / "issuer-mode").write_text("valid")
+            good = self.execute(*command, **env)
+            self.assertEqual(good.returncode, 0, good.stderr)
+            self.assertEqual(json.loads(status.read_text())["status"], "verified")
+        sessions = ["fixture-1", "fixture-1", "fixture-2", "fixture-2"]
+        self.assertEqual((self.root / "sessions").read_text().splitlines(), sessions)
+        for mode in ("short", "unavailable"):
+            (self.root / "issuer-mode").write_text(mode)
+            failure = self.execute(*command, **env)
             self.assertNotEqual(failure.returncode, 0)
             self.assertEqual(failure.stdout, "")
+            self.assertIn("could not be renewed", failure.stderr)
             self.assertNotIn("confidential", failure.stderr)
             self.assertEqual(json.loads(status.read_text())["status"], "failed")
-            self.assertEqual((self.root / "sessions").read_text().splitlines(), ["fixture-1", "fixture-2"])
+            self.assertEqual((self.root / "sessions").read_text().splitlines(), sessions)
+            self.assertEqual((self.root / "captures").read_text().splitlines(), ["captured", "captured"])
             self.assertEqual((self.root / "object").read_text(), "ciphertext")
+            self.assertEqual(list(runtime.iterdir()), [])
 
     def monitor_fixture(self):
         copy2(SCRIPTS / "staging-monitor.py", self.root)
