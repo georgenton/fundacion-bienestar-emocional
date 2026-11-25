@@ -1,0 +1,20 @@
+[Unit]
+Description=Verified encrypted FBE synthetic staging backup
+Wants=network-online.target
+After=network-online.target docker.service
+
+[Service]
+Type=oneshot
+EnvironmentFile=/etc/fbe-staging-backup/backup.env
+LoadCredential=issuer-header:/etc/fbe-staging-backup/issuer-header
+StateDirectory=fbe-staging-backup
+StateDirectoryMode=0700
+RuntimeDirectory=fbe-staging-backup
+RuntimeDirectoryMode=0700
+UMask=0077
+TimeoutStartSec=5min
+TimeoutStopSec=15s
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+ExecStart=/usr/bin/bash /opt/fbe-staging/scripts/devops/staging-backup-service.sh
