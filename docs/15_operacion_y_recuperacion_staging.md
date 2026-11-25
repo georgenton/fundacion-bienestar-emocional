@@ -2,6 +2,8 @@
 
 Mediciones y ensayo del 24 de noviembre de 2026. El clon siguió `origin/main` por fast-forward de `2128263510525ae6fb1df9451bd550255a477795` a `0de373ac92b8facf611fd8ce03fe7daae03db649`. La rama principal exige PR, rama actualizada y ambos checks de CI. El PR #7 fusionó el nuevo rótulo. El CI de esa entrega publicó las tres imágenes y el handoff validó su procedencia. [PR #7](https://github.com/georgenton/fundacion-bienestar-emocional/pull/7) · [CI de la candidata](https://github.com/georgenton/fundacion-bienestar-emocional/actions/runs/45472954312) · [Handoff](https://github.com/georgenton/fundacion-bienestar-emocional/actions/runs/45476803019) · [Manifiesto](releases/0de373ac92b8facf611fd8ce03fe7daae03db649.json).
 
+**Estado del último cierre registrado:** copia externa y restauración verificadas de forma supervisada, contraste de permisos completado, dos avisos recibidos y promoción de `0de373ac…` documentados al final. Siguen pendientes el respaldo programado y los avisos automáticos. Las primeras secciones conservan las mediciones y preparativos anteriores a ese cierre.
+
 ## Capacidad y red observadas en Coolify
 
 | Medición | Antes de este encargo, dato histórico | Lectura de este encargo |
@@ -14,37 +16,38 @@ Mediciones y ensayo del 24 de noviembre de 2026. El clon siguió `origin/main` p
 | Logs en disco de los cuatro contenedores FBE | Sin medición comparable | 1 118 208 bytes asignados en total |
 | Imágenes FBE existentes, suma sin deduplicar | Sin medición comparable | 1,38 GB + 1,54 GB + 384 MB, según Docker |
 
-Las capas comprimidas `linux/amd64` de la candidata suman 734 816 730 bytes sin deduplicar. Se propone presupuestar 6 GiB libres antes de promover, incluyendo una descarga de 0,69 GiB, hasta 3,31 GB de capas expandidas tomando la entrega activa como referencia, 512 MiB para una instancia desechable de PostgreSQL y margen para archivos de respaldo, capas auxiliares y crecimiento. Los 12,53 GiB observados superan ese presupuesto preliminar. La lectura debe repetirse inmediatamente antes de descargar al OVH. El ensayo de este documento ejecutó la descarga y la restauración en el Mac, por lo que no hay medición posterior a una promoción en OVH.
+Las capas comprimidas `linux/amd64` de la candidata suman 734 816 730 bytes sin deduplicar. Se propone presupuestar 6 GiB libres antes de promover, incluyendo una descarga de 0,69 GiB, hasta 3,31 GB de capas expandidas tomando la entrega activa como referencia, 512 MiB para una instancia desechable de PostgreSQL y margen para archivos de respaldo, capas auxiliares y crecimiento. Los 12,53 GiB observados superan ese presupuesto preliminar. La lectura debe repetirse inmediatamente antes de descargar al OVH. El ensayo inicial ejecutó la descarga y la restauración en el Mac; las mediciones de la promoción posterior en OVH constan en la sección de cierre.
 
 Se comprobó una conexión TCP desde la API a la dirección configurada de PostgreSQL. La base carece de puertos publicados. Aplicación y base comparten la red predefinida de Coolify, que tiene participantes ajenos a FBE. La red adicional de la aplicación tiene tres miembros. El servidor sigue dependiendo de las credenciales y reglas de PostgreSQL para limitar el acceso desde la red compartida.
 
 ## Respaldo externo preparado
 
-Coolify mostraba cero programas y cero ejecuciones de respaldo para PostgreSQL de FBE. El titular autorizó el R2 existente con prefijo `fbe/staging/`, clase Standard, una ejecución cada 12 horas, expiración a 30 días y costo adicional de US$0. Falta comprobar el consumo de la cuenta, las reglas superpuestas y el alcance efectivo de la credencial. La expiración se limita al prefijo de FBE. El job conserva localmente el último estado, retira sus temporales y usa un identificador nuevo en el próximo intento. Un fallo conserva las copias externas anteriores y queda señalado en el estado.
+En el inventario inicial, Coolify mostraba cero programas y cero ejecuciones de respaldo para PostgreSQL de FBE. El titular autorizó el R2 existente con prefijo `fbe/staging/`, clase Standard, una ejecución cada 12 horas, expiración a 30 días y costo adicional de US$0. El consumo y las reglas se comprobaron durante el cierre posterior; antes de activar la programación falta comprobar la credencial no interactiva y su alcance efectivo, y actualizar la lectura de consumo. La expiración se limita al prefijo de FBE. El job conserva localmente el último estado, retira sus temporales y usa un identificador nuevo en el próximo intento. Un fallo conserva las copias externas anteriores y queda señalado en el estado.
 
 1. Desde una custodia independiente del OVH, generar o recuperar una clave OpenPGP dedicada y validar su huella completa. Importar solo la clave pública en el keyring del job. La clave privada y su método de desbloqueo se mantienen en custodia fuera del OVH y se usan para el ensayo de recuperación.
-2. Después de comparar los tres digests activos con el manifiesto, usar `staging-recovery-material.sh` en un directorio vacío `0700` de tmpfs. Captura los ajustes explícitos de API y migración, el SQL de los dos roles y los permisos de base, el manifiesto y las instrucciones de orígenes, TLS y red. El dump lleva los permisos de objetos y los permisos por defecto. La captura de roles exige la topología acotada que se comprobó en FBE. Si cambia, revisar el procedimiento antes de usarlo de nuevo.
+2. Para cada ejecución, usar `staging-backup-cycle.sh`: verifica los tres digests activos contra el manifiesto, crea material nuevo en tmpfs mediante `staging-recovery-material.sh`, llama al job y retira el material al terminar. Captura los ajustes explícitos de API y migración, el SQL de los dos roles y los permisos de base, el manifiesto y las instrucciones de orígenes, TLS y red. El dump lleva los permisos de objetos y los permisos por defecto. La captura de roles exige la topología acotada que se comprobó en FBE. Si cambia, revisar el procedimiento antes de usarlo de nuevo. Actualizar el manifiesto activo después de cada promoción y coordinar el bloqueo FBE con las rotaciones o cambios de configuración.
 3. Usar GnuPG, OpenSSL, jq, Docker y AWS CLI en el ejecutor autorizado. AWS CLI 2.42.3 quedó instalado de forma exclusiva para FBE tras comprobar la firma de AWS y la huella de su clave de publicación. Aprovisionar un perfil limitado a escritura y lectura del prefijo. Usar la clave pública validada y un tmpfs privado para el dump en claro. [AWS CLI: instalación y verificación](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-version.html).
 4. Programar a las 00:00 y a las 12:00 UTC con un bloqueo exclusivo para FBE y un límite de cinco minutos. El script verifica el archivo PostgreSQL, cifra antes de subir, limita el cifrado a 256 KiB, escribe como Standard, descarga la misma clave de objeto y compara bytes. El registro operativo privado conserva el identificador y SHA-256. Ejecutar el comando tras validar destino, consumo y alcance de la credencial.
 
 ```bash
 # Entorno privado con perfil acotado y TMPDIR dentro de tmpfs
 flock --nonblock "$FBE_LOCK_FILE" timeout --kill-after=15s 300s \
-  bash scripts/devops/staging-backup-job.sh \
-    "$FBE_PG_CONTAINER" "$FBE_RECOVERY_DIR" "$FBE_GPG_FINGERPRINT" "$FBE_BACKUP_STATUS"
+  bash scripts/devops/staging-backup-cycle.sh \
+    "$FBE_PG_CONTAINER" "$FBE_API_CONTAINER" "$FBE_MIGRATE_CONTAINER" "$FBE_WEB_CONTAINER" \
+    "$FBE_RELEASE_MANIFEST" "$FBE_GPG_FINGERPRINT" "$FBE_BACKUP_STATUS"
 ```
 
 El backup programado nativo puede dejar primero archivos locales y tiene opciones para subir a almacenamiento remoto. Este procedimiento mantiene control explícito del cifrado del paquete completo, incluido el material de recuperación. [Coolify: backups](https://coolify.io/docs/databases/backups) · [PostgreSQL: SQL dump](https://www.postgresql.org/docs/18/backup-dump.html) · [GnuPG: cifrado](https://www.gnupg.org/documentation/manuals/gnupg/Operational-GPG-Commands.html) · [Cloudflare: reglas de expiración](https://developers.cloudflare.com/r2/buckets/object-lifecycles/).
 
-## Verificación adicional del staging real
+## Verificación del staging previa a la copia externa y promoción
 
 - En Coolify seguían activos los digests de `0438bf9…`, con API y web saludables, migrador con código cero y tres migraciones completadas. Se confirmó el modo sintético, el seed desactivado y cero personas o casos fuera del modo sintético. Antes de la captura había 13 135 116 KiB libres, 9 378 234 inodos libres y 5 978 352 KiB disponibles en tmpfs.
 - Se generó una clave dedicada, se probó el descifrado recuperando la frase desde la custodia del Mac y se importó únicamente la clave pública en el ejecutor. Se comprobó que el keyring del OVH contiene una clave pública de cifrado y cero privadas.
 - El dump real tuvo 54 458 bytes. El paquete cifrado de la prueba sobre la base activa y su material de recuperación tuvo **18 714 bytes** y se generó en **1 s**. Se retiró del tmpfs junto con los temporales. Esta prueba de captura no hizo solicitudes a R2.
 - Tras preparar el ejecutor aislado de AWS CLI había 12 844 820 KiB libres y 9 369 404 inodos libres. El margen superó los umbrales de 6 GiB y 500 000 inodos. Antes de una promoción corresponde una lectura nueva.
 - A dos copias diarias, 60 objetos del tamaño medido suman **1 122 840 bytes**. Con hasta 62 objetos por la ventana de expiración y el límite de 256 KiB por archivo, la cota de almacenamiento del proyecto es aproximadamente **16,3 MB**. El cálculo de operaciones parte de una escritura verificada por copia, lecturas para verificar y restaurar, y margen por reintentos. La cuota Standard es agregada para la cuenta. Quedó pendiente comparar esta cota y las operaciones con el consumo de Cloudflare, inspeccionar las reglas existentes y comprobar el alcance de las credenciales. [Precios y cuota Standard de R2](https://developers.cloudflare.com/r2/pricing/) · [Credenciales R2 acotadas](https://developers.cloudflare.com/r2/api/s3/temporary-credentials/).
-- PostgreSQL de origen mostró 18 relaciones de aplicación propiedad del migrador, cuyo rol es superusuario de la instancia dedicada. El runtime carece de propiedad, membresías, `SET ROLE` al migrador y `CREATE` en `public`. Los permisos por defecto del migrador conceden DML de tablas y `USAGE`, `SELECT` y `UPDATE` de secuencias. El runtime carece de `TRUNCATE` en auditoría y el trigger de mutación está activo. El contraste con una copia restaurada desde R2 sigue pendiente.
-- Coolify no tenía proveedor de correo activo para el equipo. Se prepararon las sondas y falta verificar el buzón corporativo en Microsoft 365, seleccionar el transporte autorizado y comprobar recepción. La web presentó el rótulo `ENTORNO LOCAL` en la última consulta pública.
+- PostgreSQL de origen mostró 18 relaciones de aplicación propiedad del migrador, cuyo rol es superusuario de la instancia dedicada. El runtime carece de propiedad, membresías, `SET ROLE` al migrador y `CREATE` en `public`. Los permisos por defecto del migrador conceden DML de tablas y `USAGE`, `SELECT` y `UPDATE` de secuencias. El runtime carece de `TRUNCATE` en auditoría y el trigger de mutación está activo. El contraste con una copia restaurada desde R2 se completó posteriormente y consta en la tabla de cierre.
+- En esta inspección Coolify no tenía proveedor de correo activo para el equipo. Se prepararon las sondas; quedaban pendientes verificar el buzón y comprobar recepción. Esas verificaciones supervisadas se completaron durante el cierre, mientras que el transporte automático sigue pendiente. La web todavía presentaba el rótulo `ENTORNO LOCAL` antes de la promoción posterior.
 
 ## Procedimiento de restauración externa
 
@@ -67,13 +70,13 @@ La revisión independiente posterior corrigió la barrera del ejecutor: el nombr
 
 En la última ejecución, la captura cifrada y copia local duraron 1 s. El archivo de ensayo tuvo 18 465 bytes y SHA-256 `b6cfe6a2e9e821322f0e3ee70ae5555e14e35f19f0401352bfa4b5976a53e3f4`. La restauración SQL duró 1 s, con 2 s de antigüedad de la copia al terminar. El tiempo hasta confirmar API y sesión funcionales fue de 8 s. La actualización con verificación funcional duró 18 s y el regreso con verificación, 7 s. Las imágenes ya estaban en caché. Se retiraron la copia de ensayo, las claves temporales y los recursos desechables al finalizar.
 
-El rol y sus permisos en la copia se construyeron para el ensayo. Aún queda contrastar la propiedad, las membresías y las ACL del staging real al preparar su paquete de recuperación. [PostgreSQL: privilegios y propietarios](https://www.postgresql.org/docs/18/ddl-priv.html).
+El rol y sus permisos de este primer ensayo se construyeron con fixtures. El contraste de la propiedad, las membresías y las ACL del staging real se completó en la restauración desde R2 descrita en la sección de cierre. [PostgreSQL: privilegios y propietarios](https://www.postgresql.org/docs/18/ddl-priv.html).
 
 ## Alertas preparadas
 
 - Ejecutar `bash scripts/devops/staging-status.sh public` cada cinco minutos desde un monitor externo al OVH. Comprueba HTTPS, JSON de salud y rótulo de uso sintético. Localmente se observó la secuencia éxito, fallo inducido apuntando solo al loopback y recuperación al restaurar la URL.
 - Ejecutar `bash scripts/devops/staging-status.sh host /var/lib/docker 6291456 500000 "$FBE_BACKUP_STATUS"` desde el host cada cinco minutos. Los umbrales propuestos corresponden a 6 GiB y 500 000 inodos libres. El respaldo alerta si falta el estado, falló el readback o la captura verificada alcanza 24 horas. Se ensayaron los estados fresco, vencido y umbral de capacidad incumplido con valores controlados.
-- El monitor puede alertar por transición a fallo tras dos comprobaciones consecutivas y notificar la recuperación. Enviar únicamente la señal, la hora y el entorno. Falta asignar un canal técnico autorizado, configurar el envío y confirmar recepción de ambos mensajes.
+- El monitor puede alertar por transición a fallo tras dos comprobaciones consecutivas y notificar la recuperación. Enviar únicamente la señal, la hora y el entorno. El buzón y la recepción supervisada quedaron comprobados en el cierre; siguen pendientes la programación, el transporte no interactivo y la recepción por ese flujo automático.
 
 ## Copia externa, restauración y promoción del 24 de noviembre de 2026
 
@@ -98,3 +101,15 @@ La promoción se inició después de verificar la restauración. La primera ejec
 API y web quedaron saludables, el migrador salió con código cero y la base mantuvo tres migraciones. Se verificó HTTPS 200 para web y API, certificado válido, PostgreSQL alcanzable, `SYNTHETIC_DATA_ONLY=true`, seed desactivado, acceso anónimo 401 y el rótulo **ENTORNO DE PRUEBAS · DATOS SINTÉTICOS · NO APTO PARA PACIENTES**. La sesión HTTPS de prueba accedió al caso asignado con 200, recibió 404 para el ajeno y fue revocada. La cuenta sintética quedó desactivada, con su participación retirada y el rastro de auditoría conservado.
 
 La capacidad inmediatamente antes de promover fue de 12 843 552 KiB y 9 369 396 inodos libres. Al terminar quedaron 12 790 764 KiB y 9 367 833 inodos libres. Se retiraron los archivos de transferencia de Coolify y del Mac, y los recursos aislados de restauración.
+
+## Preparación de la ejecución automática
+
+El ciclo `staging-backup-cycle.sh` evita depender de un directorio de recuperación antiguo o eliminado después de un reinicio. Cada ejecución captura de nuevo la configuración y los roles, verifica las tres imágenes, llama al job existente y limpia el material privado. Un fallo previo a la subida también deja un estado fallido. El código y sus pruebas aisladas no acreditan instalación ni ejecución del programador en OVH.
+
+La activación requiere una credencial efectiva limitada a FBE que pueda renovarse sin navegador. Una credencial temporal R2 tiene caducidad; debe existir un emisor autorizado y una renovación comprobada. AWS CLI puede invocarlo mediante `credential_process`, incluyendo `Expiration` para permitir la renovación. Guardar un token padre más amplio junto al job no demuestra aislamiento del ejecutor al prefijo. [R2: credenciales temporales](https://developers.cloudflare.com/r2/api/s3/temporary-credentials/) · [AWS CLI: proceso de credenciales](https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-sourcing-external.html).
+
+Para correo, reutilizar un transporte programático existente. Si se configura Microsoft Graph, limitar la identidad al buzón verificado mediante permisos efectivos del proveedor y comprobar recepción real; `202 Accepted` no acredita entrega. El monitor debe conservar los avisos pendientes cuando falle el transporte y evitar duplicados por el mismo estado. [Graph: sendMail](https://learn.microsoft.com/en-us/graph/api/user-sendmail?view=graph-rest-1.0) · [Exchange: alcance por buzón](https://learn.microsoft.com/en-us/exchange/permissions-exo/application-rbac).
+
+Antes de datos reales queda un endurecimiento separado: sustituir el uso del migrador superusuario por un administrador de bootstrap/recuperación y un migrador con permisos suficientes sobre FBE. Validar el administrador independiente y adaptar la captura de roles antes de retirar privilegios. Esta tarea no invalida la restauración sintética registrada.
+
+Encargo acotado para activar ambos procesos: [prompts/05_automatizacion_operativa.md](../prompts/05_automatizacion_operativa.md).
