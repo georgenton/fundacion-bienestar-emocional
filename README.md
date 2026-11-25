@@ -112,6 +112,7 @@ Las rutas clínicas devuelven `Cache-Control: no-store, private`. La API registr
 | `docs/releases/README.md` | Manifiestos de imágenes conservados y procedencia de sus artefactos. |
 | `prompts/04_cierre_operativo_staging.md` | Encargo para completar recuperación y observabilidad de staging. |
 | `prompts/05_automatizacion_operativa.md` | Activación del respaldo y avisos sin intervención, con las autorizaciones vigentes. |
+| `prompts/06_cierre_correo_operativo.md` | Cierre de Exchange y recepción de avisos en ambos ejecutores, con respaldo y sonda ya activos. |
 | `docs/adr/0001_base_tecnica_identidad_y_autorizacion.md` | Decisiones técnicas adoptadas para el bloque 1. |
 | `docs/adr/0002_devops_github_actions_coolify.md` | Decisiones adoptadas para CI y preparación de staging. |
 | `prompts/03_github_devops_y_staging.md` | Instrucción de continuación para Codex sobre el repositorio público. |
