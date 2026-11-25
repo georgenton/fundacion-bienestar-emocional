@@ -25,6 +25,7 @@ function setup() {
     },
   };
   async function request(url, options) {
+    assert.equal(options.redirect, "manual");
     if (url === "https://fbe-api-staging.syntavera.dev/health") {
       assert.equal(options.cache, "no-store");
       return Response.json({ status: "ok", database: "reachable", syntheticDataOnly: signals.synthetic });
@@ -34,7 +35,6 @@ function setup() {
       return new Response(signals.marker ? "<p>NO APTO PARA PACIENTES</p>" : "<p>missing</p>",
         { status: signals.webStatus });
     }
-    assert.equal(options.redirect, "error");
     if (url.startsWith("https://login.microsoftonline.com/")) {
       return Response.json({ access_token: "synthetic-access-token" });
     }
@@ -62,8 +62,10 @@ test("the external probe checks HTTPS health, synthetic mode and the web marker"
   signals.marker = true;
   signals.webStatus = 503;
   assert.equal((await tick(3)).healthy, false);
+  signals.webStatus = 302;
+  assert.equal((await tick(4)).healthy, false);
   signals.webStatus = 200;
-  assert.equal((await tick(4)).healthy, true);
+  assert.equal((await tick(5)).healthy, true);
 });
 
 test("the durable queue retains one event ID across rejection and ambiguous delivery", async () => {
