@@ -32,18 +32,18 @@ script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 runtime=${RUNTIME_DIRECTORY:?}
 [[ "$(stat -f -c %T "$runtime")" == tmpfs ]]
 work=$(mktemp -d "$runtime/fbe-service.XXXXXXXX")
-cat >"$work/aws-config" <<'EOF'
-[profile fbe-staging]
-region = auto
-credential_process = /usr/bin/bash /opt/fbe-staging/scripts/devops/staging-r2-credentials.sh
-EOF
+path="$state/bin:/usr/bin:/bin"
+# Renew once before capture. Both S3 calls share this session for the bounded run.
+env -i HOME="$work" PATH="$path" \
+  FBE_R2_ISSUER_URL="${FBE_R2_ISSUER_URL:?}" FBE_R2_ISSUER_HEADER="${CREDENTIALS_DIRECTORY:?}/issuer-header" \
+  /bin/bash "$script_dir/staging-r2-credentials.sh" >"$work/session.json"
+printf '[profile fbe-staging]\nregion = auto\ncredential_process = /bin/cat %s/session.json\n' "$work" >"$work/aws-config"
 
 # Isolate AWS sources from operator profiles, environment, container metadata and IMDS.
-env -i HOME="$work" PATH="$state/bin:/usr/bin:/bin" TMPDIR="$work" GNUPGHOME="$state/gnupg" \
+env -i HOME="$work" PATH="$path" TMPDIR="$work" GNUPGHOME="$state/gnupg" \
   AWS_PROFILE=fbe-staging AWS_CONFIG_FILE="$work/aws-config" AWS_SHARED_CREDENTIALS_FILE=/dev/null \
   AWS_EC2_METADATA_DISABLED=true AWS_MAX_ATTEMPTS=1 AWS_CLI_AUTO_PROMPT=off \
-  FBE_R2_ISSUER_URL="${FBE_R2_ISSUER_URL:?}" FBE_R2_ISSUER_HEADER="${CREDENTIALS_DIRECTORY:?}/issuer-header" \
   FBE_BACKUP_S3_ENDPOINT="${FBE_BACKUP_S3_ENDPOINT:?}" FBE_BACKUP_S3_PREFIX="${FBE_BACKUP_S3_PREFIX:?}" \
-  /usr/bin/bash "$script_dir/staging-backup-cycle.sh" \
+  /bin/bash "$script_dir/staging-backup-cycle.sh" \
     "$FBE_PG_CONTAINER" "$FBE_API_CONTAINER" "$FBE_MIGRATE_CONTAINER" "$FBE_WEB_CONTAINER" \
     "$FBE_RELEASE_MANIFEST" "$FBE_GPG_FINGERPRINT" "$status"
