@@ -9,7 +9,11 @@ from pathlib import Path
 import subprocess
 import tempfile
 from datetime import datetime, timezone
+from time import time
 from uuid import uuid4
+
+
+RETRY_DELAYS = (300, 900, 3600)
 
 
 def save_state(path, state):
@@ -85,30 +89,45 @@ def run(state_path, transport, probe, probe_args, reconcile):
         return 0
 
     notice = state["outbox"][0]
-    if notice["delivery"] == "pending":
-        notice["delivery"] = "sending"
+    now = int(time())
+    if notice["delivery"] not in ("pending", "sending"):
+        raise ValueError("Unknown notification delivery state")
+    if notice["delivery"] == "sending" and "next_attempt_at" not in notice:
+        # Older releases required reconciliation. Wait once before resuming them.
+        notice["attempts"] = max(1, notice.get("attempts", 0))
+        notice["next_attempt_at"] = now + RETRY_DELAYS[0]
         save_state(state_path, state)
-        try:
-            result = subprocess.run([transport], input=json.dumps(notice), text=True,
-                                    capture_output=True, timeout=40, check=False)
-            delivery = result.returncode
-        except OSError:
-            delivery = 75  # The transport did not start.
-        except subprocess.TimeoutExpired:
-            delivery = 76  # It may already have submitted the message.
-        if delivery == 0:
-            state["outbox"].pop(0)
-            save_state(state_path, state)
-            print(f"fbe_notice=accepted id={notice['id']} transition={notice['status']}", flush=True)
-            return 0
-        if delivery == 75:
-            notice["delivery"] = "pending"
-            save_state(state_path, state)
-            print(f"fbe_notice=retry id={notice['id']}", flush=True)
-            return 1
+    attempts = notice.get("attempts", 0)
+    next_attempt = notice.get("next_attempt_at", 0)
+    if type(attempts) is not int or attempts < 0 or type(next_attempt) is not int or next_attempt < 0:
+        raise ValueError("Invalid notification retry state")
+    if now < next_attempt:
+        print(f"fbe_notice=waiting id={notice['id']} next_attempt_at={next_attempt}", flush=True)
+        return 1
 
-    # An interrupted or ambiguous send stays in the outbox for inbox reconciliation.
-    print(f"fbe_notice=reconcile id={notice['id']}", flush=True)
+    notice["delivery"] = "sending"
+    notice["attempts"] = attempts + 1
+    notice["next_attempt_at"] = now + RETRY_DELAYS[min(attempts, len(RETRY_DELAYS) - 1)]
+    # Persist before invoking the transport so a crash cannot cause an immediate retry.
+    save_state(state_path, state)
+    try:
+        result = subprocess.run([transport], input=json.dumps(notice), text=True,
+                                capture_output=True, timeout=40, check=False)
+        delivery = result.returncode
+    except OSError:
+        delivery = 75  # The transport did not start.
+    except subprocess.TimeoutExpired:
+        delivery = 76  # It may already have submitted the message.
+    if delivery == 0:
+        state["outbox"].pop(0)
+        save_state(state_path, state)
+        print(f"fbe_notice=accepted id={notice['id']} transition={notice['status']}", flush=True)
+        return 0
+    if delivery == 75:
+        notice["delivery"] = "pending"
+        save_state(state_path, state)
+    # Ambiguous delivery retries the same ID; a lost acceptance can produce a duplicate.
+    print(f"fbe_notice=retry id={notice['id']} next_attempt_at={notice['next_attempt_at']}", flush=True)
     return 1
 
 
@@ -137,3 +156,4 @@ def main():
 
 if __name__ == "__main__":
     raise SystemExit(main())
+

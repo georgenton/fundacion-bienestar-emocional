@@ -112,48 +112,140 @@ fi
     def monitor_fixture(self):
         copy2(SCRIPTS / "staging-monitor.py", self.root)
         self.script("staging-status.sh", 'exit "$PROBE_RESULT"\n')
+        self.script("run-monitor.py", """import importlib.util
+import os
+from pathlib import Path
+import subprocess
+from unittest.mock import patch
+spec = importlib.util.spec_from_file_location("monitor", Path(__file__).with_name("staging-monitor.py"))
+monitor = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(monitor)
+invoke = monitor.subprocess.run
+def run(command, **kwargs):
+    if command[0] != "bash":
+        if os.environ.get("CRASH_BEFORE_TRANSPORT") == "1":
+            raise SystemExit(99)
+        if os.environ.get("TRANSPORT_TIMEOUT") == "1":
+            raise subprocess.TimeoutExpired(command, 40)
+    return invoke(command, **kwargs)
+with patch.object(monitor, "time", return_value=float(os.environ["FIXTURE_TIME"])), \\
+        patch.object(monitor.subprocess, "run", side_effect=run):
+    raise SystemExit(monitor.main())
+""")
         transport = self.script("transport", """#!/usr/bin/env python3
 import json, os, pathlib, sys
 notice = json.load(sys.stdin)
-with (pathlib.Path(os.environ["FIXTURE_DIR"]) / "attempts").open("a") as log:
+root = pathlib.Path(os.environ["FIXTURE_DIR"])
+# The retry deadline must already be durable before a provider can see the event.
+assert json.loads((root / "state.json").read_text())["outbox"][0] == notice
+with (root / "attempts").open("a") as log:
     log.write(json.dumps(notice) + "\\n")
 sys.exit(int(os.environ["TRANSPORT_RESULT"]))
 """)
-        return (sys.executable, str(self.root / "staging-monitor.py"), "--state", str(self.root / "state.json"),
+        return (sys.executable, str(self.root / "run-monitor.py"), "--state", str(self.root / "state.json"),
                 "--transport", str(transport))
 
     def attempts(self):
         log = self.root / "attempts"
         return [json.loads(line) for line in log.read_text().splitlines()] if log.exists() else []
 
+    def poll(self, command, now, probe, transport=0, **extra):
+        return self.execute(*command, "public", FIXTURE_TIME=str(now), PROBE_RESULT=str(probe),
+                            TRANSPORT_RESULT=str(transport), **extra)
+
     def test_monitor_persists_retry_and_emits_one_alert_and_one_recovery(self):
         command = self.monitor_fixture()
-
-        def poll(probe, transport=0):
-            return self.execute(*command, "public", PROBE_RESULT=str(probe), TRANSPORT_RESULT=str(transport))
-
-        self.assertEqual(poll(1).returncode, 0)
+        self.assertEqual(self.poll(command, 0, 1).returncode, 0)
         self.assertEqual(self.attempts(), [])
-        self.assertEqual(poll(1, 75).returncode, 1)
-        self.assertEqual(poll(0).returncode, 0)  # Recovery queues behind the retried incident.
-        self.assertEqual(poll(0).returncode, 0)
-        self.assertEqual(poll(0).returncode, 0)
+        self.assertEqual(self.poll(command, 300, 1, 75).returncode, 1)
+        self.assertEqual(self.poll(command, 599, 0).returncode, 1)
+        self.assertEqual(len(self.attempts()), 1)
+        self.assertEqual(self.poll(command, 600, 0).returncode, 0)
+        self.assertEqual(self.poll(command, 601, 0).returncode, 0)
+        self.assertEqual(self.poll(command, 602, 0).returncode, 0)
         attempts = self.attempts()
         self.assertEqual([notice["status"] for notice in attempts], ["failed", "failed", "recovered"])
         self.assertEqual(attempts[0]["id"], attempts[1]["id"])
 
-    def test_ambiguous_send_waits_for_reconciliation_without_duplicate(self):
+    def test_ambiguous_send_retries_same_id_then_delivers_queued_recovery(self):
         command = self.monitor_fixture()
-        self.execute(*command, "public", PROBE_RESULT="1", TRANSPORT_RESULT="76")
-        pending = self.execute(*command, "public", PROBE_RESULT="1", TRANSPORT_RESULT="76")
+        self.poll(command, 0, 1)
+        pending = self.poll(command, 300, 1, 76)
         self.assertEqual(pending.returncode, 1)
-        self.assertIn("fbe_notice=reconcile", pending.stdout)
-        self.execute(*command, "public", PROBE_RESULT="0", TRANSPORT_RESULT="0")
+        self.assertIn("fbe_notice=retry", pending.stdout)
+        self.assertEqual(self.poll(command, 599, 0).returncode, 1)
         self.assertEqual(len(self.attempts()), 1)
+        self.assertEqual(self.poll(command, 600, 0).returncode, 0)
+        self.assertEqual(self.poll(command, 601, 0).returncode, 0)
+        attempts = self.attempts()
+        self.assertEqual([notice["status"] for notice in attempts], ["failed", "failed", "recovered"])
+        self.assertEqual(attempts[0]["id"], attempts[1]["id"])
+        self.assertEqual(json.loads((self.root / "state.json").read_text())["outbox"], [])
+
+    def test_retry_backoff_is_persistent_and_capped_at_one_hour(self):
+        command = self.monitor_fixture()
+        self.poll(command, 0, 1)
+        for index, (due, following) in enumerate(((0, 300), (300, 1200), (1200, 4800),
+                                                 (4800, 8400), (8400, 12000))):
+            self.assertEqual(self.poll(command, due, 1, 76).returncode, 1)
+            notice = json.loads((self.root / "state.json").read_text())["outbox"][0]
+            self.assertEqual(notice["attempts"], index + 1)
+            self.assertEqual(notice["next_attempt_at"], following)
+            self.assertEqual(self.poll(command, following - 1, 1, 76).returncode, 1)
+            self.assertEqual(len(self.attempts()), index + 1)
+        self.assertEqual(len({notice["id"] for notice in self.attempts()}), 1)
+
+    def test_crash_after_persisting_send_resumes_at_its_deadline(self):
+        command = self.monitor_fixture()
+        self.poll(command, 0, 1)
+        interrupted = self.poll(command, 300, 1, CRASH_BEFORE_TRANSPORT="1")
+        self.assertEqual(interrupted.returncode, 99)
+        notice = json.loads((self.root / "state.json").read_text())["outbox"][0]
+        self.assertEqual((notice["delivery"], notice["attempts"], notice["next_attempt_at"]),
+                         ("sending", 1, 600))
+        self.assertEqual(self.poll(command, 599, 1).returncode, 1)
+        self.assertEqual(self.attempts(), [])
+        self.assertEqual(self.poll(command, 600, 1).returncode, 0)
+        self.assertEqual(self.attempts()[0]["id"], notice["id"])
+        self.assertEqual(self.attempts()[0]["attempts"], 2)
+
+    def test_transport_timeout_uses_the_same_scheduled_retry(self):
+        command = self.monitor_fixture()
+        self.poll(command, 0, 1)
+        self.assertEqual(self.poll(command, 300, 1, TRANSPORT_TIMEOUT="1").returncode, 1)
+        notice = json.loads((self.root / "state.json").read_text())["outbox"][0]
+        self.assertEqual((notice["delivery"], notice["next_attempt_at"]), ("sending", 600))
+        self.assertEqual(self.poll(command, 599, 1).returncode, 1)
+        self.assertEqual(self.attempts(), [])
+        self.assertEqual(self.poll(command, 600, 1).returncode, 0)
+        self.assertEqual(self.attempts()[0]["id"], notice["id"])
+
+    def test_legacy_in_flight_event_waits_once_then_resumes_automatically(self):
+        command = self.monitor_fixture()
+        self.poll(command, 0, 1)
+        self.poll(command, 0, 1, 76)
+        state_path = self.root / "state.json"
+        state = json.loads(state_path.read_text())
+        notice = state["outbox"][0]
+        notice.pop("attempts")
+        notice.pop("next_attempt_at")
+        state_path.write_text(json.dumps(state))
+        self.assertEqual(self.poll(command, 100, 1).returncode, 1)
+        migrated = json.loads(state_path.read_text())["outbox"][0]
+        self.assertEqual((migrated["attempts"], migrated["next_attempt_at"]), (1, 400))
+        self.assertEqual(self.poll(command, 399, 1).returncode, 1)
+        self.assertEqual(len(self.attempts()), 1)
+        self.assertEqual(self.poll(command, 400, 1).returncode, 0)
+        self.assertEqual(self.attempts()[1]["id"], notice["id"])
+
+    def test_optional_reconciliation_can_clear_an_accepted_ambiguous_event(self):
+        command = self.monitor_fixture()
+        self.poll(command, 0, 1)
+        self.poll(command, 300, 1, 76)
         identifier = self.attempts()[0]["id"]
-        result = self.execute(*command, "--reconcile", identifier, "delivered", "public")
+        result = self.execute(*command, "--reconcile", identifier, "delivered", "public", FIXTURE_TIME="301")
         self.assertEqual(result.returncode, 0, result.stdout)
-        self.execute(*command, "public", PROBE_RESULT="0", TRANSPORT_RESULT="0")
+        self.assertEqual(self.poll(command, 302, 0).returncode, 0)
         self.assertEqual([notice["status"] for notice in self.attempts()], ["failed", "recovered"])
 
     def test_graph_uses_only_configured_mailbox_and_classifies_send_result(self):
@@ -188,3 +280,4 @@ sys.exit(int(os.environ["TRANSPORT_RESULT"]))
 
 if __name__ == "__main__":
     unittest.main()
+
