@@ -26,9 +26,11 @@ function setup() {
   };
   async function request(url, options) {
     if (url === "https://fbe-api-staging.syntavera.dev/health") {
+      assert.equal(options.cache, "no-store");
       return Response.json({ status: "ok", database: "reachable", syntheticDataOnly: signals.synthetic });
     }
     if (url === "https://fbe-staging.syntavera.dev/") {
+      assert.equal(options.cache, "no-store");
       return new Response(signals.marker ? "<p>NO APTO PARA PACIENTES</p>" : "<p>missing</p>",
         { status: signals.webStatus });
     }

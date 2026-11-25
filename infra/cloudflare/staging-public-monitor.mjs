@@ -6,7 +6,7 @@ const guid = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i;
 
 async function publicHealthy(request) {
   try {
-    const options = { redirect: "error", signal: AbortSignal.timeout(10_000) };
+    const options = { cache: "no-store", redirect: "error", signal: AbortSignal.timeout(10_000) };
     const [api, web] = await Promise.all([
       request("https://fbe-api-staging.syntavera.dev/health", options),
       request("https://fbe-staging.syntavera.dev/", options),
