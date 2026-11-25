@@ -56,10 +56,11 @@ jobs:
         run: node --test scripts/devops/release-validation.test.mjs
       - name: Verify staging operations scripts
         run: |
-          for script in scripts/devops/staging-{backup,backup-job,backup-cycle,recovery-drill,recovery-material,status}.sh; do
+          for script in scripts/devops/staging-*.sh; do
             bash -n "$script"
           done
-          node --test scripts/devops/staging-backup-job.test.mjs scripts/devops/staging-backup-cycle.test.mjs scripts/devops/staging-recovery-context.test.mjs
+          node --test scripts/devops/staging-*.test.mjs
+          PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s scripts/devops -p 'test_staging_automation.py'
           status_file=$(mktemp)
           trap 'rm -f -- "$status_file"' EXIT
           jq -n --argjson now "$(date +%s)" '{status:"verified",captured_at:$now}' > "$status_file"

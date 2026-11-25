@@ -1,0 +1,17 @@
+[Unit]
+Description=FBE synthetic staging %i monitor
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+DynamicUser=yes
+StateDirectory=fbe-staging-monitor-%i
+StateDirectoryMode=0700
+LoadCredential=graph:/etc/fbe-staging-monitor/graph.json
+UMask=0077
+TimeoutStartSec=75s
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+ExecStart=/usr/bin/python3 /opt/fbe-staging/scripts/devops/staging-monitor.py --state /var/lib/fbe-staging-monitor-%i/state.json --transport /opt/fbe-staging/scripts/devops/staging-graph-mail.py %i
