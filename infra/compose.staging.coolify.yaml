@@ -27,6 +27,7 @@ services:
       AUTH_RESET_TOKEN_TTL_SECONDS: 900
       DATABASE_URL: ${DATABASE_URL:?Set the private runtime connection}
       ALLOW_SYNTHETIC_SEED: "false"
+      ALLOW_SYNTHETIC_INVITATIONS: "true"
       SYNTHETIC_DATA_ONLY: "true"
       LOG_LEVEL: info
     expose: ["3001"]

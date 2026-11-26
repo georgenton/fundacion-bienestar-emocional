@@ -10,6 +10,7 @@ const environmentSchema = z
     BETTER_AUTH_SECRET: z.string().min(32),
     BETTER_AUTH_URL: z.url(),
     AUTH_RESET_TOKEN_TTL_SECONDS: z.coerce.number().int().min(60).max(3_600).default(900),
+    ALLOW_SYNTHETIC_INVITATIONS: z.enum(["true", "false"]).default("false"),
     ALLOW_SYNTHETIC_SEED: z.enum(["true", "false"]).default("false"),
     SYNTHETIC_DATA_ONLY: z.literal("true"),
     LOG_LEVEL: z.enum(["fatal", "error", "warn", "info", "debug", "trace"]).default("info"),
@@ -42,6 +43,7 @@ export type AppConfig = Readonly<{
   authUrl: string;
   resetTokenTtlSeconds: number;
   allowSyntheticSeed: boolean;
+  allowSyntheticInvitations: boolean;
   syntheticDataOnly: true;
   logLevel: "fatal" | "error" | "warn" | "info" | "debug" | "trace";
 }>;
@@ -63,6 +65,7 @@ export function loadConfig(environment: NodeJS.ProcessEnv = process.env): AppCon
     authSecret: parsed.BETTER_AUTH_SECRET,
     authUrl: parsed.BETTER_AUTH_URL,
     resetTokenTtlSeconds: parsed.AUTH_RESET_TOKEN_TTL_SECONDS,
+    allowSyntheticInvitations: parsed.ALLOW_SYNTHETIC_INVITATIONS === "true",
     allowSyntheticSeed: parsed.ALLOW_SYNTHETIC_SEED === "true",
     syntheticDataOnly: true,
     logLevel: parsed.LOG_LEVEL,

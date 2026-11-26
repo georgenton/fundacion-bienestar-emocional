@@ -8,7 +8,7 @@ const testMessages = new Map<string, InvitationMessage>();
 
 export async function deliverInvitation(message: InvitationMessage): Promise<void> {
   const config = loadConfig();
-  if (config.appEnv === "production") throw new Error("INVITATION_DELIVERY_NOT_CONFIGURED");
+  if (config.appEnv === "production" && !config.allowSyntheticInvitations) throw new Error("INVITATION_DELIVERY_NOT_CONFIGURED");
   if (config.appEnv === "test") {
     testMessages.set(message.email, message);
     return;
