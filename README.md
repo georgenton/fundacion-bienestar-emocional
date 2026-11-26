@@ -1,8 +1,8 @@
 # Plataforma de la Fundación para el Bienestar Emocional
 
-Base local verificable del bloque 1 (FBE-001 a FBE-004), preparada para Jorge Quizamanchuro y para validación institucional de David Jaramillo. Usa exclusivamente identidades y casos sintéticos.
+Entrega verificable de los bloques 1 y 2 (FBE-001 a FBE-008), preparada para Jorge Quizamanchuro y para validación institucional de David Jaramillo. Usa exclusivamente identidades y casos sintéticos.
 
-Esta versión permite iniciar una web y una API, migrar PostgreSQL, invitar y activar cuentas sintéticas, iniciar/cerrar sesiones, recuperar contraseña, usar MFA TOTP o códigos de respaldo para el personal y demostrar autorización por rol, identidad, participación y asignación vigente. **No contiene agenda, registro funcional de pacientes, apertura de casos, expediente clínico, pagos, video ni datos reales; no está lista para pacientes.**
+La web y la API permiten trabajar con personas, casos y agenda sintéticos sobre la identidad, MFA y autorización del bloque 1. La atención real sigue sujeta a los criterios del piloto institucional. El expediente, los pagos y el video se abordarán en sus bloques.
 
 ## Repositorio público y auditoría
 
@@ -10,7 +10,7 @@ Repositorio canónico: [georgenton/fundacion-bienestar-emocional](https://github
 
 Esta historia pública comienza con una copia saneada del ZIP del bloque 1 y las correcciones de la auditoría independiente del 24 de noviembre de 2026. El ZIP identifica el commit local `5c325950cff66dd9d215761f08ee0be5e4555bae`, pero no contiene su historial Git. La copia original del Mac se conserva en privado; el desarrollo público continúa desde un clon nuevo de este repositorio. Véanse [procedencia y autorizaciones](docs/11_autorizaciones_codex_y_publicacion.md) y [auditoría independiente](docs/12_auditoria_independiente_2026-11-24.md).
 
-Las correcciones añaden verificación MFA por sesión, aislamiento del resultado mostrado al cambiar de cuenta, comprobación de origen en mutaciones y coherencia entre asignaciones y listados. Hay tres migraciones versionadas. La invitación y activación se verifican por API; el enlace `/activate` todavía no tiene una pantalla implementada.
+Las correcciones añaden verificación MFA por sesión, aislamiento del resultado mostrado al cambiar de cuenta, comprobación de origen en mutaciones y coherencia entre asignaciones y listados. El bloque 2 lleva el esquema a cuatro migraciones y agrega la pantalla `/activate` para las invitaciones del buzón sintético.
 
 ## Requisitos fijados
 
