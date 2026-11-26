@@ -67,3 +67,15 @@ La restauración y el rollback de aplicación se ejecutaron de forma aislada. En
 ## Pendientes
 
 Invitaciones y recuperación para usuarios reales requieren un transporte y un procedimiento institucional aprobados. El buzón sintético reside en el sistema de archivos del contenedor. En una recuperación se usa el Compose del manifiesto para recrear la configuración y se emite otra invitación si se perdió su enlace. El alcance actual se limita a adultos en casos individuales sintéticos. El siguiente bloque aborda expediente, consentimiento y supervisión.
+
+## Revisión independiente y corrección de activación — 26 de noviembre de 2026
+
+La revisión de código de personas, invitaciones, permisos y agenda no identificó defectos bloqueantes para el alcance sintético. El [CI de main 45878119404](https://github.com/georgenton/fundacion-bienestar-emocional/actions/runs/45878119404), correspondiente a 3a990d6c99b567285e22da5863d97bcedcf8a87a, terminó con los tres trabajos aprobados. Sus logs confirman 22 pruebas de integración, incluidas seis del bloque 2. La comprobación pública de esta revisión obtuvo web y salud 200, modo sintético y 401 en casos sin sesión. Las acciones privadas de OVH, R2 y navegador conservan la atribución al operador de las secciones anteriores.
+
+Se reprodujo un defecto menor de /activate: el efecto capturaba el token y limpiaba la URL, pero una segunda ejecución sustituía el estado por un valor vacío. La corrección conserva el token capturado cuando la URL ya está limpia. Mantiene Strict Mode y el retiro del token de la URL. React documenta la reejecución de efectos durante desarrollo: [StrictMode](https://react.dev/reference/react/StrictMode).
+
+La verificación focalizada transpiló el componente TSX real original y corregido con TypeScript 6.0.3 y los montó con React/ReactDOM 19.3.1, StrictMode y jsdom 31.0.1, bajo Node 24.22.3. Sustituyó únicamente next/link por un enlace HTML y el transporte de API por un sustituto local. Los seis escenarios comprobaron fragmento, query de invitaciones anteriores y ausencia de token para ambas versiones. La original perdía el formulario con token; la corregida lo conserva, limpia la URL, envía exactamente token y contraseña una vez y retira el formulario al completar la activación. Sin token, ninguna versión permite enviar. El proceso terminó con código 0.
+
+Este ensayo no levantó Next completo ni hizo llamadas a la API; no reemplaza el recorrido Chromium informado arriba. No se añadieron dependencias al proyecto para realizarlo. La corrección se incorpora a la próxima candidata; esta revisión no promueve imágenes a staging.
+
+El siguiente encargo está en [prompts/07_expediente_consentimiento_supervision.md](../prompts/07_expediente_consentimiento_supervision.md). Su recuperación conjunta deberá incluir citas pobladas del bloque 2: la inspección de siete entradas TABLE DATA descrita antes sigue sin equivaler a una restauración de esos datos.
