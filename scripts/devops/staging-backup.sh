@@ -50,7 +50,7 @@ if ! docker exec -i "$source_container" pg_restore --file=/dev/null <"$scratch/d
 fi
 
 # Only ciphertext reaches the output directory. The recovery private key stays off-host.
-tar -C "$scratch" -cf - "${archive[@]}" \
+COPYFILE_DISABLE=1 tar -C "$scratch" -cf - "${archive[@]}" \
   -C "$(cd "$recovery" && pwd -P)" "${material[@]}" |
   gpg --batch --yes --trust-model always --recipient "$recipient" \
     --output "$cipher_tmp" --encrypt
