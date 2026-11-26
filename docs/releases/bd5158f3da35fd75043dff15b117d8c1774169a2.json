@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "source_repository": "georgenton/fundacion-bienestar-emocional",
+  "source_sha": "bd5158f3da35fd75043dff15b117d8c1774169a2",
+  "workflow_run_id": "45874927169",
+  "workflow_run_attempt": "1",
+  "created_at": "2026-11-26T18:26:52.753Z",
+  "platform": "linux/amd64",
+  "public_api_origin": "https://fbe-api-staging.syntavera.dev",
+  "images": {
+    "api": "ghcr.io/georgenton/fundacion-bienestar-emocional-api@sha256:695cdb64e14b1f592235fcc6b22f93a9020b2f0d2da67f44d4bb1da92ec0f4e2",
+    "migrate": "ghcr.io/georgenton/fundacion-bienestar-emocional-migrate@sha256:ca8c8a2c2dd6adc8ac3581477ee92d429cdacc2105b716a8143281479816b3d2",
+    "web": "ghcr.io/georgenton/fundacion-bienestar-emocional-web@sha256:450486a4bbe94a46e6b95312c6aa4627b7c300a77b6db6ee921777a472e0fd85"
+  },
+  "verification": {
+    "source_ci": "passed",
+    "image_smoke": "passed"
+  }
+}
