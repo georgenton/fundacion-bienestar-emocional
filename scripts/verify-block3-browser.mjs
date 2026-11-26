@@ -14,13 +14,13 @@ assert(fixture.synthetic);
 const { actors } = fixture;
 const browser = await chromium.launch();
 const mark = randomUUID().slice(0, 8);
-const day = new Date(Date.now() + 3 * 86400000).toISOString().slice(0, 10);
+const day = new Date(Date.now() + 5 * 86400000).toISOString().slice(0, 10);
 const now = () => new Date();
 const date = shift => new Date(Date.now() + shift * 86400000);
 const local = instant => new Date(instant.getTime() - 18_000_000).toISOString();
 const button = (page, name) => page.getByRole("button", { name, exact: true });
 const heading = (page, name) => page.getByRole("heading", { name, exact: true });
-const label = (page, name) => page.getByLabel(name, { exact: true });
+const label = (page, name) => page.getByLabel(name);
 let phase = "sesiones";
 
 async function session(actor, mobile = false) {

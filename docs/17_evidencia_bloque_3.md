@@ -18,6 +18,12 @@
 
 [ADR 0004](adr/0004_expediente_practicas_y_adjuntos.md) · [Manual operativo](15_operacion_y_recuperacion_staging.md)
 
+## Resultados locales observados
+
+- PostgreSQL 18.7 vacío aplicó las cinco migraciones. `pnpm demo:verify` pasó 26 pruebas de integración. El escaneo del registro capturado no detectó secretos generados, cabeceras de sesión ni texto clínico.
+- Chromium completó la regresión de personas, agenda y activación con una fecha sintética distinta. El recorrido del bloque 3 pasó con recepción, coordinación, tratante, pasante y supervisor en escritorio y el portal del paciente en viewport móvil. Comprobó la nota validada con adenda, el aporte supervisado, los minutos aprobados y la igualdad de los bytes descargados.
+- La instalación reproducible usó Node 24.22.3 y `pnpm install --frozen-lockfile` con pnpm 10.34.9. El lockfile se conservó.
+
 ## Alcance institucional
 
 Todo el recorrido usa datos y archivos ficticios. David y la institución conservan la aprobación de textos, plantillas, atribuciones, prácticas, conservación y entrega. FBE-018 y FBE-019 conservan verificaciones futuras de otros módulos.

@@ -84,7 +84,7 @@ El CI reproduce migraciones, pruebas, escaneo y build en `.github/workflows/ci.y
 | Actor sintético | Resultado del servidor |
 |---|---|
 | Recepción | Lista y resumen operativo; no contenido clínico. |
-| Profesional | Lectura clínica vacía solo sobre caso asignado y mientras la asignación siga vigente. |
+| Profesional | Lectura del expediente con alcance clínico explícito y vigente sobre el caso. |
 | Paciente | Resumen de su caso por identidad y participación; no ve otro caso ni contenido aún no compartido. |
 | Soporte | Diagnóstico técnico; lista de casos vacía y sin lectura clínica. |
 | Administración operativa | Lista institucional, invitaciones y desactivación; nunca permiso clínico universal. |
