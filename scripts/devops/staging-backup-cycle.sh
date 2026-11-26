@@ -70,4 +70,4 @@ script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 bash "$script_dir/staging-recovery-material.sh" \
   "$db" "${containers[0]}" "${containers[1]}" "$work/manifest.json" "$work/recovery"
 # Only the existing job may publish a verified status after its encrypted S3 readback.
-bash "$script_dir/staging-backup-job.sh" "$db" "$work/recovery" "$recipient" "$status"
+FBE_BACKUP_API_CONTAINER=${containers[0]} bash "$script_dir/staging-backup-job.sh" "$db" "$work/recovery" "$recipient" "$status"

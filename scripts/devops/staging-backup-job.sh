@@ -62,3 +62,4 @@ write_status verified
 verified=true
 printf 'backup_id=%s duration_seconds=%s ' "$id" "$(( $(date +%s) - started ))"
 openssl dgst -sha256 "$backup" | awk '{ print "ciphertext_sha256=" $NF }'
+printf 'ciphertext_bytes=%s\n' "$size"

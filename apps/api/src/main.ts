@@ -1,6 +1,6 @@
 import "reflect-metadata";
 import { NestFactory } from "@nestjs/core";
-import { json } from "express";
+import { json, type RequestHandler } from "express";
 import cors from "cors";
 import { toNodeHandler } from "better-auth/node";
 import { loadConfig } from "@fbe/config";
@@ -23,6 +23,12 @@ export async function createApp() {
     }),
   );
   express.all("/api/auth/*splat", toNodeHandler(getAuth()));
+  const clinicalHeaders: RequestHandler = (_request, response, next) => {
+    response.setHeader("Cache-Control", "no-store, private");
+    response.setHeader("X-Content-Type-Options", "nosniff");
+    next();
+  };
+  express.use("/api/clinical", clinicalHeaders);
   express.use(json({ limit: "64kb" }));
 
   app.useGlobalFilters(new SafeExceptionFilter(logger));

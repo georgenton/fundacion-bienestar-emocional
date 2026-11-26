@@ -3,7 +3,9 @@ set +x
 set -euo pipefail
 umask 077
 candidate=${1:-}
-[[ $# -le 1 ]] || { echo 'Usage: staging-recovery-drill.sh [absolute-block2-release.json]' >&2; exit 2; }
+mode=${2-}
+[[ $# -le 2 && ( -z "$mode" || "$mode" = "--from-block2" ) ]] ||
+  { echo 'Usage: staging-recovery-drill.sh [absolute-candidate.json [--from-block2]]' >&2; exit 2; }
 cd "$(dirname "$0")/../.."
 
 # Local-only rehearsal. Never use an existing database, network or volume.
@@ -31,6 +33,9 @@ if [[ -n "$candidate" ]]; then
       .value | test("^ghcr[.]io/georgenton/fundacion-bienestar-emocional-" + $part + "@sha256:[a-f0-9]{64}$")))
   ' "$candidate" >/dev/null
   before=$after
+  if [[ "$mode" = "--from-block2" ]]; then
+    before=docs/releases/bd5158f3da35fd75043dff15b117d8c1774169a2.json
+  fi
   after=$candidate
   block2=true
 fi
@@ -118,6 +123,25 @@ INSERT INTO public."AuditEvent" (action, "resourceType", decision, "reasonCode")
 VALUES ('recovery-drill', 'synthetic', 'ALLOWED', 'DRILL');
 SQL
 
+if [[ "$mode" = "--from-block2" ]]; then
+  db "$src" <<'SQL'
+WITH service AS (
+  INSERT INTO public."ServiceDefinition" ("name", "modalities", "durationMinutes", "marginMinutes", "updatedAt")
+  VALUES ('Consulta de recuperación ficticia', ARRAY['IN_PERSON']::"AppointmentModality"[], 45, 10, now()) RETURNING id, name
+), tariff AS (
+  INSERT INTO public."ServiceTariff" ("serviceId", currency, "amountMinor", "startsAt")
+  SELECT id, 'USD', 1800, now() FROM service RETURNING id
+)
+INSERT INTO public."Appointment" ("caseId", "professionalId", "createdByAccountId", "serviceId", "tariffId",
+  "serviceName", modality, "startsAt", "endsAt", "occupiedUntil", "durationMinutes", "marginMinutes",
+  currency, "amountMinor", status, "updatedAt")
+SELECT c.id, a."accountId", a."accountId", s.id, t.id, s.name, 'IN_PERSON',
+  now(), now()+interval '45 minutes', now()+interval '55 minutes', 45, 10, 'USD', 1800, 'CONFIRMED', now()
+FROM public."CareCase" c JOIN public."CaseAssignment" a ON a."caseId"=c.id
+CROSS JOIN service s CROSS JOIN tariff t WHERE c."referenceCode"='SYN-CASE-A' AND a.function='TREATING_PROFESSIONAL';
+SQL
+fi
+
 gpg --homedir "$work/custodian" --batch --pinentry-mode loopback --passphrase '' \
   --quick-generate-key 'FBE disposable recovery drill' default default 1d 2>/dev/null
 fingerprint=$(gpg --homedir "$work/custodian" --with-colons --list-keys 2>/dev/null |
@@ -159,7 +183,9 @@ SELECT concat_ws('|',
 SQL
 }
 baseline=$(snapshot "$src")
-[[ "$baseline" = 3\|8\|2\|2\|3\|1\|* && "$baseline" = "$(snapshot "$dst")" ]]
+fixture_people=8
+if [[ "$mode" = "--from-block2" ]]; then fixture_people=9; fi
+[[ "$baseline" = 3\|"$fixture_people"\|2\|2\|3\|1\|* && "$baseline" = "$(snapshot "$dst")" ]]
 printf 'restore_sql_seconds=%s copy_age_at_restore_seconds=%s\n' \
   "$(( restore_date - started ))" "$(( restore_date - $(<"$work/restore/captured-at") ))"
 
@@ -254,6 +280,43 @@ expect_denial 42501 'SET ROLE fbe_migrate;' assume_migration_role_denied
 expect_denial 42501 'TRUNCATE public."AuditEvent";' audit_truncate_denied
 expect_denial P0001 'BEGIN; UPDATE public."AuditEvent" SET action=action; ROLLBACK;' audit_update_denied
 expect_denial P0001 'BEGIN; DELETE FROM public."AuditEvent"; ROLLBACK;' audit_delete_denied
+
+if [[ "$mode" = "--from-block2" ]]; then
+  appointment_digest() {
+    db "$1" <<'SQL'
+SELECT md5(string_agg(id::text || ':' || "caseId"::text || ':' || status::text, ',' ORDER BY id))
+FROM public."Appointment";
+SQL
+  }
+  appointment_before=$(appointment_digest "$src")
+  [[ -n "$appointment_before" && "$appointment_before" = "$(appointment_digest "$dst")" ]]
+  upgrade_started=$(date +%s)
+  check_images "$after"
+  docker run --rm --platform linux/amd64 --network "$restore_net" \
+    --env-file "$work/restore/migration.env" "$(image "$after" migrate)"
+  clinical_state() {
+    db "$dst" <<'SQL'
+SELECT count(*) FROM public."_prisma_migrations"
+WHERE migration_name='202611260002_clinical_records' AND finished_at IS NOT NULL AND rolled_back_at IS NULL;
+SQL
+  }
+  [[ "$(clinical_state)" = 1 && "$(appointment_digest "$dst")" = "$appointment_before" ]]
+  [[ "$(runtime_query <<'SQL'
+SELECT has_table_privilege(current_user, 'public."ClinicalNote"', 'SELECT,INSERT')
+AND has_column_privilege(current_user, 'public."ClinicalNote"', 'narrative', 'UPDATE')
+AND has_table_privilege(current_user, 'public."PrivateAttachment"', 'SELECT,INSERT');
+SQL
+)" = t ]]
+  expect_denial 42501 'DELETE FROM public."ClinicalNote";' clinical_delete_denied
+  expect_denial 42501 'UPDATE public."ClinicalNote" SET "authorId"="authorId";' clinical_author_update_denied
+  expect_denial 42501 'UPDATE public."PrivateAttachment" SET sha256=sha256;' attachment_update_denied
+  printf 'upgrade_and_functional_check_seconds=%s appointment_preserved=true\n' "$(( $(date +%s) - upgrade_started ))"
+  rollback_started=$(date +%s)
+  check_images "$before"
+  [[ "$(clinical_state)" = 1 && "$(appointment_digest "$dst")" = "$appointment_before" ]]
+  printf 'rollback_and_functional_check_seconds=%s schema_retained=block3\n' "$(( $(date +%s) - rollback_started ))"
+  exit 0
+fi
 
 if [[ "$block2" = true ]]; then
   upgrade_started=$(date +%s)

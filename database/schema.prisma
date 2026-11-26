@@ -55,16 +55,16 @@ model AuthUser {
 }
 
 model AuthSession {
-  id        String   @id
-  expiresAt DateTime
-  token     String   @unique
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  ipAddress String?
-  userAgent String?
-  userId    String
-  mfaVerified Boolean @default(false)
-  user      AuthUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id          String   @id
+  expiresAt   DateTime
+  token       String   @unique
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  ipAddress   String?
+  userAgent   String?
+  userId      String
+  mfaVerified Boolean  @default(false)
+  user        AuthUser @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@map("session")
@@ -118,41 +118,60 @@ model AuthTwoFactor {
 }
 
 model Person {
-  id           String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  id           String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   displayName  String
   contactEmail String?
   archivedAt   DateTime?
-  synthetic    Boolean           @default(true)
-  createdAt    DateTime          @default(now())
-  updatedAt    DateTime          @updatedAt
+  synthetic    Boolean             @default(true)
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
   userAccount  UserAccount?
   participants CaseParticipant[]
-  invitations AccountInvitation[]
+  invitations  AccountInvitation[]
+
+  consents            ConsentRecord[]
+  informationRequests InformationRequest[]
+  documentShares      AttachmentShare[]
 
   @@index([contactEmail])
 }
 
 model UserAccount {
-  id              String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  authUserId      String              @unique
-  personId        String              @unique @db.Uuid
-  status          AccountStatus       @default(INVITED)
-  mfaRequired     Boolean             @default(false)
-  disabledAt      DateTime?
-  createdAt       DateTime            @default(now())
-  updatedAt       DateTime            @updatedAt
-  authUser        AuthUser            @relation(fields: [authUserId], references: [id], onDelete: Restrict)
-  person          Person              @relation(fields: [personId], references: [id], onDelete: Restrict)
-  roles           AccountRole[]
-  assignments     CaseAssignment[]
-  auditEvents     AuditEvent[]
-  sentInvitations AccountInvitation[] @relation("InvitationSender")
-  serviceEligibility ServiceProfessional[]
-  workingHours ProfessionalHours[]
-  absences ProfessionalAbsence[]
-  appointments Appointment[] @relation("AppointmentProfessional")
-  reservedAppointments Appointment[] @relation("AppointmentCreator")
-  agendaRequests AgendaRequest[]
+  id                   String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  authUserId           String                @unique
+  personId             String                @unique @db.Uuid
+  status               AccountStatus         @default(INVITED)
+  mfaRequired          Boolean               @default(false)
+  disabledAt           DateTime?
+  createdAt            DateTime              @default(now())
+  updatedAt            DateTime              @updatedAt
+  authUser             AuthUser              @relation(fields: [authUserId], references: [id], onDelete: Restrict)
+  person               Person                @relation(fields: [personId], references: [id], onDelete: Restrict)
+  roles                AccountRole[]
+  assignments          CaseAssignment[]
+  auditEvents          AuditEvent[]
+  sentInvitations      AccountInvitation[]   @relation("InvitationSender")
+  serviceEligibility   ServiceProfessional[]
+  workingHours         ProfessionalHours[]
+  absences             ProfessionalAbsence[]
+  appointments         Appointment[]         @relation("AppointmentProfessional")
+  reservedAppointments Appointment[]         @relation("AppointmentCreator")
+  agendaRequests       AgendaRequest[]
+
+  recordedConsents          ConsentRecord[]      @relation("ConsentRecorder")
+  withdrawnConsents         ConsentRecord[]      @relation("ConsentWithdrawer")
+  encounterResponsibilities Encounter[]
+  authoredNotes             ClinicalNote[]       @relation("NoteAuthor")
+  validatedNotes            ClinicalNote[]       @relation("NoteValidator")
+  clinicalReviews           NoteReview[]
+  clinicalAddenda           ClinicalAddendum[]
+  trainingPractices         Practice[]           @relation("PracticeIntern")
+  supervisedPractices       Practice[]           @relation("PracticeSupervisor")
+  practiceChanges           PracticeChange[]
+  activityReviews           PracticeActivity[]   @relation("ActivityReviewer")
+  files                     PrivateAttachment[]
+  fileShares                AttachmentShare[]
+  handledRequests           InformationRequest[] @relation("RequestHandler")
 
   @@index([status])
 }
@@ -182,7 +201,7 @@ model AccountInvitation {
   role               Role        @relation(fields: [roleId], references: [id], onDelete: Restrict)
   invitedBy          UserAccount @relation("InvitationSender", fields: [invitedByAccountId], references: [id], onDelete: Restrict)
 
-  person             Person?     @relation(fields: [personId], references: [id], onDelete: Restrict)
+  person Person? @relation(fields: [personId], references: [id], onDelete: Restrict)
 
   @@index([personId])
   @@index([email])
@@ -218,20 +237,24 @@ model AccountRole {
 }
 
 model CareCase {
-  id            String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  referenceCode String            @unique
-  status        CaseStatus        @default(OPEN)
-  synthetic     Boolean           @default(true)
-  openedAt      DateTime          @default(now())
-  closedAt      DateTime?
-  createdAt     DateTime          @default(now())
-  updatedAt     DateTime          @updatedAt
-  participants  CaseParticipant[]
-  assignments   CaseAssignment[]
-  serviceId     String?           @db.Uuid
-  modality      AppointmentModality?
-  service       ServiceDefinition? @relation(fields: [serviceId], references: [id], onDelete: Restrict)
-  appointments  Appointment[]
+  id                  String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  referenceCode       String               @unique
+  status              CaseStatus           @default(OPEN)
+  synthetic           Boolean              @default(true)
+  openedAt            DateTime             @default(now())
+  closedAt            DateTime?
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+  participants        CaseParticipant[]
+  assignments         CaseAssignment[]
+  serviceId           String?              @db.Uuid
+  modality            AppointmentModality?
+  service             ServiceDefinition?   @relation(fields: [serviceId], references: [id], onDelete: Restrict)
+  appointments        Appointment[]
+  consents            ConsentRecord[]
+  encounters          Encounter[]
+  files               PrivateAttachment[]
+  informationRequests InformationRequest[]
 }
 
 model CaseParticipant {
@@ -260,6 +283,10 @@ model CaseAssignment {
   revokedAt      DateTime?
   careCase       CareCase           @relation(fields: [caseId], references: [id], onDelete: Restrict)
   account        UserAccount        @relation(fields: [accountId], references: [id], onDelete: Restrict)
+
+  practiceId String?        @db.Uuid
+  practice   Practice?      @relation(fields: [practiceId], references: [id], onDelete: Restrict)
+  notes      ClinicalNote[]
 
   @@index([caseId, accountId, startsAt, endsAt, revokedAt])
 }
@@ -351,12 +378,12 @@ model ProfessionalAbsence {
 }
 
 model ServiceTariff {
-  id          String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  serviceId   String            @db.Uuid
-  currency    String            @db.VarChar(3)
-  amountMinor Int
-  startsAt    DateTime          @db.Timestamptz(3)
-  service     ServiceDefinition @relation(fields: [serviceId], references: [id], onDelete: Restrict)
+  id           String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  serviceId    String            @db.Uuid
+  currency     String            @db.VarChar(3)
+  amountMinor  Int
+  startsAt     DateTime          @db.Timestamptz(3)
+  service      ServiceDefinition @relation(fields: [serviceId], references: [id], onDelete: Restrict)
   appointments Appointment[]
 
   @@unique([serviceId, startsAt])
@@ -395,6 +422,8 @@ model Appointment {
   previous           Appointment?        @relation("AppointmentReschedule", fields: [previousId], references: [id], onDelete: Restrict)
   replacement        Appointment?        @relation("AppointmentReschedule")
 
+  encounter Encounter?
+
   @@index([professionalId, startsAt])
   @@index([caseId, startsAt])
 }
@@ -408,4 +437,284 @@ model AgendaRequest {
   actor       UserAccount @relation(fields: [actorId], references: [id], onDelete: Restrict)
 
   @@id([actorId, key])
+}
+
+enum ConsentPurpose {
+  CARE
+  INTERN_PARTICIPATION
+}
+
+enum ConsentMedium {
+  PATIENT_PORTAL
+  STAFF_WITNESSED
+}
+
+model ConsentTemplate {
+  id        String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  purpose   ConsentPurpose
+  version   Int
+  body      String
+  createdAt DateTime        @default(now()) @db.Timestamptz(3)
+  evidence  ConsentRecord[]
+
+  @@unique([purpose, version])
+}
+
+model ConsentRecord {
+  id            String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  caseId        String              @db.Uuid
+  personId      String              @db.Uuid
+  templateId    String              @db.Uuid
+  recordedById  String              @db.Uuid
+  medium        ConsentMedium
+  scope         String
+  acceptedAt    DateTime            @db.Timestamptz(3)
+  withdrawnAt   DateTime?           @db.Timestamptz(3)
+  withdrawnById String?             @db.Uuid
+  careCase      CareCase            @relation(fields: [caseId], references: [id], onDelete: Restrict)
+  person        Person              @relation(fields: [personId], references: [id], onDelete: Restrict)
+  template      ConsentTemplate     @relation(fields: [templateId], references: [id], onDelete: Restrict)
+  recordedBy    UserAccount         @relation("ConsentRecorder", fields: [recordedById], references: [id], onDelete: Restrict)
+  withdrawnBy   UserAccount?        @relation("ConsentWithdrawer", fields: [withdrawnById], references: [id], onDelete: Restrict)
+  files         PrivateAttachment[]
+
+  @@index([caseId, personId, acceptedAt])
+}
+
+enum EncounterStatus {
+  OPEN
+  COMPLETED
+}
+
+model Encounter {
+  id             String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  caseId         String          @db.Uuid
+  appointmentId  String          @unique @db.Uuid
+  professionalId String          @db.Uuid
+  occurredAt     DateTime        @db.Timestamptz(3)
+  openedAt       DateTime        @default(now()) @db.Timestamptz(3)
+  completedAt    DateTime?       @db.Timestamptz(3)
+  status         EncounterStatus @default(OPEN)
+  careCase       CareCase        @relation(fields: [caseId], references: [id], onDelete: Restrict)
+  appointment    Appointment     @relation(fields: [appointmentId], references: [id], onDelete: Restrict)
+  professional   UserAccount     @relation(fields: [professionalId], references: [id], onDelete: Restrict)
+  notes          ClinicalNote[]
+
+  @@index([caseId, openedAt])
+}
+
+enum ClinicalNoteStatus {
+  DRAFT
+  IN_REVIEW
+  RETURNED
+  VALIDATED
+}
+
+model ClinicalNote {
+  id              String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  encounterId     String             @db.Uuid
+  assignmentId    String             @db.Uuid
+  practiceId      String?            @db.Uuid
+  authorId        String             @db.Uuid
+  authorFunction  AssignmentFunction
+  templateVersion String
+  occurredAt      DateTime           @db.Timestamptz(3)
+  recordedAt      DateTime           @default(now()) @db.Timestamptz(3)
+  narrative       String
+  version         Int                @default(1)
+  status          ClinicalNoteStatus @default(DRAFT)
+  validatorId     String?            @db.Uuid
+  validatedAt     DateTime?          @db.Timestamptz(3)
+  encounter       Encounter          @relation(fields: [encounterId], references: [id], onDelete: Restrict)
+  assignment      CaseAssignment     @relation(fields: [assignmentId], references: [id], onDelete: Restrict)
+  practice        Practice?          @relation(fields: [practiceId], references: [id], onDelete: Restrict)
+  author          UserAccount        @relation("NoteAuthor", fields: [authorId], references: [id], onDelete: Restrict)
+  validator       UserAccount?       @relation("NoteValidator", fields: [validatorId], references: [id], onDelete: Restrict)
+  reviews         NoteReview[]
+  addenda         ClinicalAddendum[]
+
+  @@index([encounterId, recordedAt])
+  @@index([practiceId, status])
+}
+
+model NoteReview {
+  id         String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  noteId     String             @db.Uuid
+  actorId    String             @db.Uuid
+  transition ClinicalNoteStatus
+  version    Int
+  remarks    String?
+  createdAt  DateTime           @default(now()) @db.Timestamptz(3)
+  note       ClinicalNote       @relation(fields: [noteId], references: [id], onDelete: Restrict)
+  actor      UserAccount        @relation(fields: [actorId], references: [id], onDelete: Restrict)
+
+  @@unique([noteId, version])
+}
+
+model ClinicalAddendum {
+  id        String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  noteId    String       @db.Uuid
+  authorId  String       @db.Uuid
+  reason    String
+  narrative String
+  createdAt DateTime     @default(now()) @db.Timestamptz(3)
+  note      ClinicalNote @relation(fields: [noteId], references: [id], onDelete: Restrict)
+  author    UserAccount  @relation(fields: [authorId], references: [id], onDelete: Restrict)
+
+  @@index([noteId, createdAt])
+}
+
+enum PracticeState {
+  ACTIVE
+  SUSPENDED
+}
+
+model Practice {
+  id                 String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  internId           String              @db.Uuid
+  supervisorId       String              @db.Uuid
+  institution        String
+  institutionalRef   String
+  startsAt           DateTime            @db.Timestamptz(3)
+  endsAt             DateTime            @db.Timestamptz(3)
+  state              PracticeState       @default(ACTIVE)
+  clinicalSimulation Boolean             @default(false)
+  version            Int                 @default(1)
+  intern             UserAccount         @relation("PracticeIntern", fields: [internId], references: [id], onDelete: Restrict)
+  supervisor         UserAccount         @relation("PracticeSupervisor", fields: [supervisorId], references: [id], onDelete: Restrict)
+  assignments        CaseAssignment[]
+  notes              ClinicalNote[]
+  changes            PracticeChange[]
+  activities         PracticeActivity[]
+  files              PrivateAttachment[]
+
+  @@index([internId, startsAt])
+  @@index([supervisorId, startsAt])
+}
+
+model PracticeChange {
+  id                   String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  practiceId           String        @db.Uuid
+  actorId              String        @db.Uuid
+  version              Int
+  previousSupervisorId String        @db.Uuid
+  supervisorId         String        @db.Uuid
+  state                PracticeState
+  clinicalSimulation   Boolean
+  reason               String
+  createdAt            DateTime      @default(now()) @db.Timestamptz(3)
+  practice             Practice      @relation(fields: [practiceId], references: [id], onDelete: Restrict)
+  actor                UserAccount   @relation(fields: [actorId], references: [id], onDelete: Restrict)
+
+  @@unique([practiceId, version])
+}
+
+enum ActivityKind {
+  TRAINING
+  SUPERVISION
+  PREPARATION
+}
+
+enum ActivityState {
+  PENDING
+  RETURNED
+  APPROVED
+  SUPERSEDED
+}
+
+model PracticeActivity {
+  id           String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  practiceId   String            @db.Uuid
+  previousId   String?           @unique @db.Uuid
+  reviewerId   String?           @db.Uuid
+  kind         ActivityKind
+  day          DateTime          @db.Date
+  minutes      Int
+  status       ActivityState     @default(PENDING)
+  reviewReason String?
+  reviewedAt   DateTime?         @db.Timestamptz(3)
+  createdAt    DateTime          @default(now()) @db.Timestamptz(3)
+  practice     Practice          @relation(fields: [practiceId], references: [id], onDelete: Restrict)
+  reviewer     UserAccount?      @relation("ActivityReviewer", fields: [reviewerId], references: [id], onDelete: Restrict)
+  previous     PracticeActivity? @relation("ActivityRevision", fields: [previousId], references: [id], onDelete: Restrict)
+  correction   PracticeActivity? @relation("ActivityRevision")
+
+  @@index([practiceId, status, day])
+}
+
+enum AttachmentClass {
+  CASE_DOCUMENT
+  CONSENT_EVIDENCE
+  PRACTICE_DOCUMENT
+}
+
+enum AttachmentState {
+  PRIVATE
+}
+
+model PrivateAttachment {
+  id          String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  caseId      String?            @db.Uuid
+  practiceId  String?            @db.Uuid
+  consentId   String?            @db.Uuid
+  createdById String             @db.Uuid
+  previousId  String?            @unique @db.Uuid
+  kind        AttachmentClass
+  state       AttachmentState    @default(PRIVATE)
+  version     Int                @default(1)
+  title       String
+  storageKey  String             @unique @db.Uuid
+  sha256      String             @db.VarChar(64)
+  bytes       Int
+  mediaType   String
+  createdAt   DateTime           @default(now()) @db.Timestamptz(3)
+  careCase    CareCase?          @relation(fields: [caseId], references: [id], onDelete: Restrict)
+  practice    Practice?          @relation(fields: [practiceId], references: [id], onDelete: Restrict)
+  consent     ConsentRecord?     @relation(fields: [consentId], references: [id], onDelete: Restrict)
+  createdBy   UserAccount        @relation(fields: [createdById], references: [id], onDelete: Restrict)
+  previous    PrivateAttachment? @relation("AttachmentRevision", fields: [previousId], references: [id], onDelete: Restrict)
+  replacement PrivateAttachment? @relation("AttachmentRevision")
+  share       AttachmentShare?
+
+  @@index([caseId, kind])
+  @@index([practiceId])
+}
+
+model AttachmentShare {
+  personId     String               @db.Uuid
+  person       Person               @relation(fields: [personId], references: [id], onDelete: Restrict)
+  attachmentId String               @id @db.Uuid
+  sharedById   String               @db.Uuid
+  sharedAt     DateTime             @default(now()) @db.Timestamptz(3)
+  attachment   PrivateAttachment    @relation(fields: [attachmentId], references: [id], onDelete: Restrict)
+  sharedBy     UserAccount          @relation(fields: [sharedById], references: [id], onDelete: Restrict)
+  requests     InformationRequest[]
+}
+
+enum InformationState {
+  REQUESTED
+  VERIFIED
+  REVIEWED
+  DELIVERED
+}
+
+model InformationRequest {
+  id                 String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  caseId             String           @db.Uuid
+  requesterId        String           @db.Uuid
+  handlerId          String?          @db.Uuid
+  attachmentId       String?          @db.Uuid
+  scope              String
+  status             InformationState @default(REQUESTED)
+  initiatedAt        DateTime         @default(now()) @db.Timestamptz(3)
+  verifiedAt         DateTime?        @db.Timestamptz(3)
+  reviewedAt         DateTime?        @db.Timestamptz(3)
+  deliveredAt        DateTime?        @db.Timestamptz(3)
+  thirdPartyReviewed Boolean          @default(false)
+  careCase           CareCase         @relation(fields: [caseId], references: [id], onDelete: Restrict)
+  requester          Person           @relation(fields: [requesterId], references: [id], onDelete: Restrict)
+  handler            UserAccount?     @relation("RequestHandler", fields: [handlerId], references: [id], onDelete: Restrict)
+  delivery           AttachmentShare? @relation(fields: [attachmentId], references: [attachmentId], onDelete: Restrict)
+
+  @@index([caseId, initiatedAt])
 }
