@@ -39,3 +39,76 @@ ul { padding-left: 20px; line-height: 1.8; }
   .environment { margin-bottom: 28px; }
   .panel { padding: 22px; }
 }
+
+.environment { margin-bottom: 34px; }
+.hero { padding: 24px 0 34px; }
+.hero h1 { font-size: clamp(2rem, 7vw, 3.8rem); }
+.workspace-title, .workspace { width: min(1180px, 100%); margin: 0 auto; }
+.workspace-title { display: flex; gap: 18px; flex-wrap: wrap; justify-content: space-between; align-items: end; margin-bottom: 24px; }
+.workspace-title h1 { font-size: clamp(1.9rem, 5vw, 3.15rem); margin: 5px 0 0; }
+.workspace-title .eyebrow { margin: 0; }
+.session { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+.session span { color: #48534b; font-weight: 650; }
+.auth-heading { font-size: clamp(1.8rem, 5vw, 2.6rem); line-height: 1.12; }
+.auth-panel { max-width: 530px; }
+.auth-panel p:last-child { margin-bottom: 0; }
+.auth-panel a { color: #286a48; font-weight: 700; }
+.workspace-nav { display: flex; gap: 9px; flex-wrap: wrap; margin-bottom: 18px; }
+.workspace .panel { width: 100%; margin: 0; min-width: 0; }
+.workspace-columns, .people-layout { display: grid; gap: 18px; align-items: start; }
+.workspace-columns { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.people-layout { grid-template-columns: minmax(265px, 0.8fr) minmax(0, 1.4fr); }
+.section-heading, .row-content { display: flex; align-items: start; justify-content: space-between; gap: 10px; }
+.section-heading { margin: 0 0 12px; }
+h3 { margin: 16px 0 8px; }
+h2 { line-height: 1.2; }
+p { line-height: 1.48; }
+small { color: #526157; }
+.muted { color: #526157; }
+input, select, textarea { color: #172019; background: #fff; }
+select, textarea { width: 100%; min-height: 44px; padding: 10px 12px; border: 1px solid #aebcaf; border-radius: 10px; font: inherit; }
+input:focus-visible, select:focus-visible, button:focus-visible, summary:focus-visible, a:focus-visible { outline: 3px solid #7ac69a; outline-offset: 2px; }
+button:disabled { cursor: wait; opacity: .65; }
+input[type="checkbox"] { width: auto; }
+.checks { display: grid; gap: 8px; align-content: start; }
+.checks label { display: flex; align-items: center; gap: 8px; }
+.search-form, .agenda-toolbar { display: flex; flex-wrap: wrap; gap: 10px; align-items: end; }
+.search-form label, .agenda-toolbar label { flex: 1 1 160px; }
+.agenda-toolbar { margin-bottom: 14px; }
+.fields { margin: 0; padding: 0; border: 0; min-width: 0; display: grid; gap: 12px; }
+.fields > button { justify-self: start; }
+.form-grid { display: grid; gap: 11px; grid-template-columns: repeat(auto-fit, minmax(min(190px, 100%), 1fr)); }
+.form-grid p { margin: 0; }
+.action-form { margin: 15px 0; }
+.action-details { border-top: 1px solid #dce5dd; margin: 13px 0; padding: 12px 0 0; }
+.action-details summary { color: #286a48; font-weight: 700; cursor: pointer; margin-bottom: 10px; }
+.action-details form + form { border-top: 1px solid #dce5dd; padding-top: 12px; margin-top: 12px; }
+.record { border: 1px solid #dce5dd; background: #f9fbf9; border-radius: 12px; padding: 15px; margin: 12px 0; min-width: 0; }
+.record p { margin: 5px 0; }
+.reference { font-size: .87rem; overflow-wrap: anywhere; color: #48534b; }
+.person-list { list-style: none; padding: 0; display: grid; gap: 8px; }
+.person-row { display: grid; gap: 3px; width: 100%; text-align: left; color: #172019; background: #f4f8f4; border: 1px solid #dce5dd; }
+.person-row[aria-pressed="true"] { background: #dceee2; border-color: #87b89a; }
+.person-row strong, .person-row small { overflow-wrap: anywhere; }
+.facts { display: flex; flex-wrap: wrap; gap: 16px 28px; }
+.facts dt { color: #526157; font-size: .86rem; }
+.facts dd { margin: 2px 0; overflow-wrap: anywhere; }
+.compact-list { padding-left: 19px; }
+.badge { border-radius: 20px; padding: 4px 9px; color: #185538; background: #dfefe4; font-size: .8rem; font-weight: 750; flex-shrink: 0; }
+.badge-waiting { color: #6b4110; background: #fff0cb; }
+.status { padding: 10px 12px; margin: 10px 0; border-radius: 9px; background: #e3f1e8; color: #245337; }
+.message { margin: 10px 0; }
+.agenda-day { border-top: 1px solid #dce5dd; margin-top: 20px; }
+
+@media (max-width: 800px) {
+  .workspace-columns, .people-layout { grid-template-columns: minmax(0, 1fr); }
+  .workspace-title { align-items: start; }
+}
+@media (max-width: 540px) {
+  main { padding-inline: 14px; }
+  .environment { margin-inline: -14px; padding-inline: 14px; margin-bottom: 22px; }
+  .panel { padding: 16px; }
+  .workspace-nav { gap: 6px; }
+  .workspace-nav button { padding: 8px 12px; }
+  .row-content { flex-wrap: wrap; }
+}

@@ -23,6 +23,7 @@
     "db:seed": "pnpm packages:build && tsx database/seed.ts",
     "env:init": "tsx scripts/init-env.ts",
     "demo:verify": "tsx scripts/verify-demo.ts",
+    "demo:block2:browser": "node scripts/verify-block2-browser.mjs",
     "logs:scan": "tsx scripts/scan-sensitive-output.ts",
     "check": "pnpm lint && pnpm test && pnpm build && pnpm logs:scan"
   },
@@ -35,6 +36,7 @@
     "@better-auth/utils": "0.5.1",
     "@types/node": "26.6.6",
     "dotenv": "17.2.3",
+    "playwright": "1.65.1",
     "prisma": "7.10.1",
     "tsx": "4.23.15",
     "typescript": "6.0.3"

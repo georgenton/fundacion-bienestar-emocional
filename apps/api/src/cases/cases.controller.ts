@@ -34,7 +34,8 @@ export class CasesController {
     await this.requireAccess(request, caseActions.overviewRead, id);
     return prisma.careCase.findUniqueOrThrow({
       where: { id },
-      select: { id: true, referenceCode: true, status: true, openedAt: true },
+      select: { id: true, referenceCode: true, status: true, openedAt: true, modality: true,
+        service: { select: { name: true } } },
     });
   }
 

@@ -9,8 +9,17 @@ import { HealthController } from "./health/health.controller.js";
 import { InvitationsController } from "./invitations/invitations.controller.js";
 import { InvitationsService } from "./invitations/invitations.service.js";
 
+import { PeopleCasesController } from "./operations/people-cases.controller.js";
+import { PeopleCasesService } from "./operations/people-cases.service.js";
+import { CatalogController } from "./agenda/catalog.controller.js";
+import { CatalogService } from "./agenda/catalog.service.js";
+
+import { AppointmentsController } from "./agenda/appointments.controller.js";
+import { AppointmentsService } from "./agenda/appointments.service.js";
+
 @Module({
-  controllers: [HealthController, MeController, CasesController, AccountsController, InvitationsController],
-  providers: [SessionGuard, AccessPolicyService, AccountsService, InvitationsService],
+  controllers: [HealthController, MeController, CasesController, AccountsController, InvitationsController,
+    PeopleCasesController, CatalogController, AppointmentsController],
+  providers: [SessionGuard, AccessPolicyService, AccountsService, InvitationsService, PeopleCasesService, CatalogService, AppointmentsService],
 })
 export class AppModule {}

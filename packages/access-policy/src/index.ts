@@ -1,7 +1,8 @@
-import type { PrismaClient } from "@fbe/database";
+import type { Prisma, PrismaClient } from "@fbe/database";
 
 export const caseActions = {
   overviewRead: "CASE_OVERVIEW_READ",
+  appointmentRead: "CASE_APPOINTMENT_READ",
   clinicalRead: "CASE_CLINICAL_READ",
   export: "CASE_EXPORT",
 } as const;
@@ -15,6 +16,11 @@ export const capabilities = {
   accountInvite: "account:invite",
   auditRead: "audit:read",
   technicalDiagnostics: "technical:diagnostics",
+  personManage: "person:manage",
+  caseManage: "case:manage",
+  patientInvite: "patient:invite",
+  agendaManage: "agenda:manage",
+  agendaConfigure: "agenda:configure",
 } as const;
 
 export type ActorContext = Readonly<{
@@ -26,6 +32,45 @@ export type ActorContext = Readonly<{
 }>;
 
 export type AccessDecision = Readonly<{ allowed: boolean; reasonCode: string }>;
+
+export function activePeriod(at: Date) {
+  return { startsAt: { lte: at }, OR: [{ endsAt: null }, { endsAt: { gt: at } }] };
+}
+
+export function activeRole(code: string, at: Date): Prisma.AccountRoleWhereInput {
+  return { ...activePeriod(at), role: { code } };
+}
+
+export function appointmentScope(actor: ActorContext, at: Date): Prisma.AppointmentWhereInput {
+  if (actor.capabilities.includes(capabilities.agendaManage)) return {};
+
+  const scopes: Prisma.AppointmentWhereInput[] = [];
+  if (actor.roleCodes.includes("PROFESSIONAL")) {
+    scopes.push({
+      professionalId: actor.accountId,
+      careCase: {
+        assignments: {
+          some: {
+            accountId: actor.accountId,
+            ...activePeriod(at),
+            revokedAt: null,
+            allowedActions: { has: caseActions.appointmentRead },
+          },
+        },
+      },
+    });
+  }
+  if (actor.roleCodes.includes("PATIENT")) {
+    scopes.push({
+      careCase: {
+        participants: {
+          some: { personId: actor.personId, kind: "PATIENT", portalAccess: true, ...activePeriod(at) },
+        },
+      },
+    });
+  }
+  return { OR: scopes, status: { in: ["CONFIRMED", "CANCELLED", "RESCHEDULED"] } };
+}
 
 export class CaseAccessPolicy {
   constructor(private readonly database: PrismaClient) {}
@@ -109,7 +154,7 @@ export class CaseAccessPolicy {
         };
     const cases = await this.database.careCase.findMany({
       where: scopedWhere,
-      select: { id: true, referenceCode: true, status: true },
+      select: { id: true, referenceCode: true, status: true, serviceId: true, modality: true },
       orderBy: { referenceCode: "asc" },
     });
     await this.database.auditEvent.create({

@@ -120,12 +120,16 @@ model AuthTwoFactor {
 model Person {
   id           String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   displayName  String
-  contactEmail String?           @unique
+  contactEmail String?
+  archivedAt   DateTime?
   synthetic    Boolean           @default(true)
   createdAt    DateTime          @default(now())
   updatedAt    DateTime          @updatedAt
   userAccount  UserAccount?
   participants CaseParticipant[]
+  invitations AccountInvitation[]
+
+  @@index([contactEmail])
 }
 
 model UserAccount {
@@ -143,6 +147,12 @@ model UserAccount {
   assignments     CaseAssignment[]
   auditEvents     AuditEvent[]
   sentInvitations AccountInvitation[] @relation("InvitationSender")
+  serviceEligibility ServiceProfessional[]
+  workingHours ProfessionalHours[]
+  absences ProfessionalAbsence[]
+  appointments Appointment[] @relation("AppointmentProfessional")
+  reservedAppointments Appointment[] @relation("AppointmentCreator")
+  agendaRequests AgendaRequest[]
 
   @@index([status])
 }
@@ -165,12 +175,16 @@ model AccountInvitation {
   displayName        String
   roleId             String      @db.Uuid
   invitedByAccountId String      @db.Uuid
+  personId           String?     @db.Uuid
   expiresAt          DateTime
   usedAt             DateTime?
   createdAt          DateTime    @default(now())
   role               Role        @relation(fields: [roleId], references: [id], onDelete: Restrict)
   invitedBy          UserAccount @relation("InvitationSender", fields: [invitedByAccountId], references: [id], onDelete: Restrict)
 
+  person             Person?     @relation(fields: [personId], references: [id], onDelete: Restrict)
+
+  @@index([personId])
   @@index([email])
   @@index([expiresAt, usedAt])
 }
@@ -214,6 +228,10 @@ model CareCase {
   updatedAt     DateTime          @updatedAt
   participants  CaseParticipant[]
   assignments   CaseAssignment[]
+  serviceId     String?           @db.Uuid
+  modality      AppointmentModality?
+  service       ServiceDefinition? @relation(fields: [serviceId], references: [id], onDelete: Restrict)
+  appointments  Appointment[]
 }
 
 model CaseParticipant {
@@ -261,4 +279,133 @@ model AuditEvent {
 
   @@index([occurredAt])
   @@index([actorAccountId, occurredAt])
+}
+
+enum AppointmentModality {
+  IN_PERSON
+  ONLINE
+}
+
+enum AppointmentStatus {
+  HELD
+  CONFIRMED
+  EXPIRED
+  RESCHEDULED
+  CANCELLED
+}
+
+enum AttendanceStatus {
+  UNRECORDED
+  ATTENDED
+  NO_SHOW
+}
+
+enum CancellationParty {
+  PATIENT
+  PROFESSIONAL
+  ADMINISTRATIVE
+}
+
+model ServiceDefinition {
+  id              String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name            String
+  enabled         Boolean               @default(true)
+  modalities      AppointmentModality[]
+  durationMinutes Int
+  marginMinutes   Int
+  updatedAt       DateTime              @updatedAt
+  professionals   ServiceProfessional[]
+  tariffs         ServiceTariff[]
+  cases           CareCase[]
+  appointments    Appointment[]
+}
+
+model ServiceProfessional {
+  serviceId      String            @db.Uuid
+  professionalId String            @db.Uuid
+  enabled        Boolean           @default(true)
+  service        ServiceDefinition @relation(fields: [serviceId], references: [id], onDelete: Restrict)
+  professional   UserAccount       @relation(fields: [professionalId], references: [id], onDelete: Restrict)
+
+  @@id([serviceId, professionalId])
+}
+
+model ProfessionalHours {
+  professionalId String      @db.Uuid
+  weekday        Int
+  opensMinute    Int
+  closesMinute   Int
+  professional   UserAccount @relation(fields: [professionalId], references: [id], onDelete: Restrict)
+
+  @@id([professionalId, weekday])
+}
+
+model ProfessionalAbsence {
+  id             String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  professionalId String      @db.Uuid
+  startsAt       DateTime    @db.Timestamptz(3)
+  endsAt         DateTime    @db.Timestamptz(3)
+  professional   UserAccount @relation(fields: [professionalId], references: [id], onDelete: Restrict)
+
+  @@index([professionalId, startsAt])
+}
+
+model ServiceTariff {
+  id          String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  serviceId   String            @db.Uuid
+  currency    String            @db.VarChar(3)
+  amountMinor Int
+  startsAt    DateTime          @db.Timestamptz(3)
+  service     ServiceDefinition @relation(fields: [serviceId], references: [id], onDelete: Restrict)
+  appointments Appointment[]
+
+  @@unique([serviceId, startsAt])
+}
+
+model Appointment {
+  id                 String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  caseId             String              @db.Uuid
+  professionalId     String              @db.Uuid
+  createdByAccountId String              @db.Uuid
+  serviceId          String              @db.Uuid
+  tariffId           String              @db.Uuid
+  serviceName        String
+  modality           AppointmentModality
+  startsAt           DateTime            @db.Timestamptz(3)
+  endsAt             DateTime            @db.Timestamptz(3)
+  occupiedUntil      DateTime            @db.Timestamptz(3)
+  durationMinutes    Int
+  marginMinutes      Int
+  currency           String              @db.VarChar(3)
+  amountMinor        Int
+  holdExpiresAt      DateTime?           @db.Timestamptz(3)
+  status             AppointmentStatus   @default(HELD)
+  attendance         AttendanceStatus    @default(UNRECORDED)
+  cancellationParty  CancellationParty?
+  changeReason       String?
+  version            Int                 @default(1)
+  previousId         String?             @unique @db.Uuid
+  createdAt          DateTime            @default(now()) @db.Timestamptz(3)
+  updatedAt          DateTime            @updatedAt @db.Timestamptz(3)
+  careCase           CareCase            @relation(fields: [caseId], references: [id], onDelete: Restrict)
+  professional       UserAccount         @relation("AppointmentProfessional", fields: [professionalId], references: [id], onDelete: Restrict)
+  createdBy          UserAccount         @relation("AppointmentCreator", fields: [createdByAccountId], references: [id], onDelete: Restrict)
+  service            ServiceDefinition   @relation(fields: [serviceId], references: [id], onDelete: Restrict)
+  tariff             ServiceTariff       @relation(fields: [tariffId], references: [id], onDelete: Restrict)
+  previous           Appointment?        @relation("AppointmentReschedule", fields: [previousId], references: [id], onDelete: Restrict)
+  replacement        Appointment?        @relation("AppointmentReschedule")
+
+  @@index([professionalId, startsAt])
+  @@index([caseId, startsAt])
+}
+
+model AgendaRequest {
+  actorId     String      @db.Uuid
+  key         String
+  fingerprint String
+  result      Json
+  createdAt   DateTime    @default(now()) @db.Timestamptz(3)
+  actor       UserAccount @relation(fields: [actorId], references: [id], onDelete: Restrict)
+
+  @@id([actorId, key])
 }

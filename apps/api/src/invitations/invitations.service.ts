@@ -1,120 +1,141 @@
-import { createHash, randomBytes } from "node:crypto";
-import { BadRequestException, ForbiddenException, Injectable } from "@nestjs/common";
+import { createHash, randomBytes, randomUUID } from "node:crypto";
+import { ConflictException, Injectable, NotFoundException, ServiceUnavailableException } from "@nestjs/common";
+import { hashPassword } from "better-auth/crypto";
 import { loadConfig } from "@fbe/config";
-import { prisma } from "@fbe/database";
+import { prisma, Prisma } from "@fbe/database";
 import type { AuthenticatedActor } from "../auth/authenticated-request.js";
-import { getEnrollmentAuth } from "../auth/auth.js";
+import { AccessPolicyService } from "../access/access-policy.service.js";
 import { capabilities } from "../access/access.types.js";
+import { invalid, object, syntheticEmail, text, uuid } from "../operations/input.js";
 import { deliverInvitation } from "./invitation-delivery.js";
 
-type CreateInvitationInput = Readonly<{ email?: unknown; displayName?: unknown; roleCode?: unknown }>;
-type ActivateInvitationInput = Readonly<{ token?: unknown; password?: unknown }>;
+const activationInvalid = () => invalid("ACTIVATION_INVALID");
 
 @Injectable()
 export class InvitationsService {
-  async create(actor: AuthenticatedActor, input: CreateInvitationInput) {
-    if (!actor.capabilities.includes(capabilities.accountInvite)) {
-      throw new ForbiddenException({ code: "CAPABILITY_REQUIRED" });
-    }
-    if (
-      typeof input.email !== "string" ||
-      !input.email.endsWith("@example.test") ||
-      typeof input.displayName !== "string" ||
-      input.displayName.length < 3 ||
-      typeof input.roleCode !== "string"
-    ) {
-      throw new BadRequestException({ code: "SYNTHETIC_INVITATION_INVALID" });
+  constructor(private readonly policy: AccessPolicyService) {}
+
+  async create(actor: AuthenticatedActor, body: unknown) {
+    const input = object(body);
+    const personId = input.personId === undefined ? undefined : uuid(input.personId);
+    const capability = personId ? capabilities.patientInvite : capabilities.accountInvite;
+    await this.policy.requireCapability(actor, capability, "AccountInvitation");
+    const config = loadConfig();
+    if (config.appEnv === "production" && !config.allowSyntheticInvitations) {
+      throw new ServiceUnavailableException({ code: "INVITATION_DELIVERY_NOT_CONFIGURED" });
     }
 
-    const role = await prisma.role.findUnique({ where: { code: input.roleCode } });
-    if (!role) throw new BadRequestException({ code: "ROLE_INVALID" });
+    const email = syntheticEmail(input.email);
+    if (personId && input.roleCode !== undefined && input.roleCode !== "PATIENT") invalid("PATIENT_ROLE_REQUIRED");
+    const roleCode = personId ? "PATIENT" : text(input.roleCode, 2, 50);
+    const displayName = personId ? undefined : text(input.displayName, 3, 120);
     const token = randomBytes(32).toString("base64url");
     const tokenDigest = createHash("sha256").update(token).digest("hex");
-    const invitation = await prisma.accountInvitation.create({
-      data: {
-        tokenDigest,
-        email: input.email,
-        displayName: input.displayName,
-        roleId: role.id,
-        invitedByAccountId: actor.accountId,
-        expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1_000),
-      },
-      select: { id: true, email: true, expiresAt: true },
+
+    const invitation = await prisma.$transaction(async (db) => {
+      const now = new Date();
+      await this.policy.requireCurrentCapability(db, actor, capability, now);
+      const role = await db.role.findUnique({ where: { code: roleCode } });
+      if (!role || (personId && (role.isStaff || role.isClinical))) invalid("ROLE_INVALID");
+      const person = personId && await db.person.findFirst({
+        where: { id: personId, synthetic: true, archivedAt: null },
+        select: { displayName: true, userAccount: { select: { id: true } } },
+      });
+      if (personId && !person) throw new NotFoundException({ code: "PERSON_NOT_AVAILABLE" });
+      if ((person && person.userAccount) || await db.authUser.findUnique({ where: { email }, select: { id: true } })) {
+        throw new ConflictException({ code: "ACCOUNT_ALREADY_LINKED" });
+      }
+
+      const created = await db.accountInvitation.create({
+        data: {
+          tokenDigest, email, displayName: person ? person.displayName : displayName!, personId: personId ?? null,
+          roleId: role.id, invitedByAccountId: actor.accountId, expiresAt: new Date(now.getTime() + 86_400_000),
+        },
+        select: { id: true, expiresAt: true },
+      });
+      await this.policy.recordOperation(db, actor, capability, "ACCOUNT_INVITE", "AccountInvitation", created.id);
+      return created;
     });
+
     await deliverInvitation({
-      email: input.email,
-      token,
-      activationUrl: `${loadConfig().webOrigin}/activate?token=${encodeURIComponent(token)}`,
+      email, token,
+      activationUrl: `${config.webOrigin}/activate#token=${encodeURIComponent(token)}`,
     });
-    await prisma.auditEvent.create({
-      data: {
-        actorAccountId: actor.accountId,
-        action: "ACCOUNT_INVITE",
-        capability: capabilities.accountInvite,
-        resourceType: "AccountInvitation",
-        resourceId: invitation.id,
-        decision: "ALLOWED",
-        reasonCode: "SYNTHETIC_INVITATION_CREATED",
-      },
-    });
-    return { id: invitation.id, expiresAt: invitation.expiresAt, delivery: "LOCAL_OUTBOX" };
+    return { ...invitation, delivery: "LOCAL_OUTBOX" };
   }
 
-  async activate(input: ActivateInvitationInput) {
-    if (typeof input.token !== "string" || input.token.length < 32 || typeof input.password !== "string" || input.password.length < 12) {
-      throw new BadRequestException({ code: "ACTIVATION_INVALID" });
+  async activate(body: unknown) {
+    const { token, password, ...extra } = object(body);
+    if (Object.keys(extra).length || typeof token !== "string" || !/^[A-Za-z0-9_-]{43}$/.test(token) ||
+        typeof password !== "string" || password.length < 12 || password.length > 128) {
+      return activationInvalid();
     }
-    const tokenDigest = createHash("sha256").update(input.token).digest("hex");
-    const invitation = await prisma.accountInvitation.findUnique({
-      where: { tokenDigest },
-      include: { role: true },
+    const tokenDigest = createHash("sha256").update(token).digest("hex");
+    const candidate = await prisma.accountInvitation.findUnique({
+      where: { tokenDigest }, select: { id: true, expiresAt: true, usedAt: true },
     });
-    if (!invitation || invitation.usedAt || invitation.expiresAt <= new Date()) {
-      throw new BadRequestException({ code: "ACTIVATION_INVALID" });
-    }
+    if (!candidate || candidate.usedAt || candidate.expiresAt <= new Date()) return activationInvalid();
 
-    const consumed = await prisma.accountInvitation.updateMany({
-      where: { id: invitation.id, usedAt: null, expiresAt: { gt: new Date() } },
-      data: { usedAt: new Date() },
-    });
-    if (consumed.count !== 1) throw new BadRequestException({ code: "ACTIVATION_INVALID" });
-
-    let authUserId: string | undefined;
+    // Better Auth still owns password hashing and authentication. Its sign-up
+    // API uses a separate connection, so use its credential record contract
+    // here to commit identity, linkage and token consumption together.
+    const passwordHash = await hashPassword(password);
     try {
-      const signedUp = await getEnrollmentAuth().api.signUpEmail({
-        body: { name: invitation.displayName, email: invitation.email, password: input.password },
-      });
-      const createdAuthUserId = signedUp.user.id;
-      authUserId = createdAuthUserId;
-      await prisma.$transaction(async (transaction) => {
-        const person = await transaction.person.create({
-          data: { displayName: invitation.displayName, contactEmail: invitation.email, synthetic: true },
+      return await prisma.$transaction(async (db) => {
+        const invitation = await db.accountInvitation.findUniqueOrThrow({
+          where: { id: candidate.id }, include: { role: true },
         });
-        const account = await transaction.userAccount.create({
+        if (invitation.personId) {
+          await db.$executeRaw`SELECT id FROM "Person" WHERE id = ${invitation.personId}::uuid FOR UPDATE`;
+        }
+        const [clock] = await db.$queryRaw<{ now: Date }[]>`SELECT clock_timestamp() AS "now"`;
+        const now = clock!.now;
+        const consumed = await db.accountInvitation.updateMany({
+          where: { id: invitation.id, usedAt: null, expiresAt: { gt: now } }, data: { usedAt: now },
+        });
+        if (consumed.count !== 1) return activationInvalid();
+
+        const person = invitation.personId
+          ? await db.person.findFirst({
+              where: { id: invitation.personId, archivedAt: null, synthetic: true, userAccount: null },
+              select: { id: true, displayName: true },
+            })
+          : await db.person.create({
+              data: { displayName: invitation.displayName, contactEmail: invitation.email, synthetic: true },
+              select: { id: true, displayName: true },
+            });
+        if (!person || (invitation.personId && (invitation.role.code !== "PATIENT" ||
+            invitation.role.isStaff || invitation.role.isClinical))) return activationInvalid();
+
+        const authUserId = randomUUID();
+        await db.authUser.create({
           data: {
-            authUserId: createdAuthUserId,
-            personId: person.id,
-            status: "ACTIVE",
-            mfaRequired: invitation.role.isStaff,
-            roles: { create: { roleId: invitation.roleId } },
+            id: authUserId, name: person.displayName, email: invitation.email,
+            authAccounts: {
+              create: { id: randomUUID(), accountId: authUserId, providerId: "credential", password: passwordHash },
+            },
           },
+          select: { id: true },
         });
-        await transaction.auditEvent.create({
+        const account = await db.userAccount.create({
           data: {
-            actorAccountId: invitation.invitedByAccountId,
-            action: "ACCOUNT_ACTIVATE",
-            resourceType: "UserAccount",
-            resourceId: account.id,
-            decision: "ALLOWED",
+            authUserId, personId: person.id, status: "ACTIVE",
+            mfaRequired: invitation.role.isStaff, roles: { create: { roleId: invitation.roleId } },
+          },
+          select: { id: true },
+        });
+        await db.auditEvent.create({
+          data: {
+            actorAccountId: invitation.invitedByAccountId, action: "ACCOUNT_ACTIVATE",
+            resourceType: "UserAccount", resourceId: account.id, decision: "ALLOWED",
             reasonCode: "INVITATION_TOKEN_CONSUMED",
           },
         });
+        return { activated: true, mfaEnrollmentRequired: invitation.role.isStaff };
       });
-      return { activated: true, mfaEnrollmentRequired: invitation.role.isStaff };
-    } catch {
-      if (authUserId) await prisma.authUser.delete({ where: { id: authUserId } }).catch(() => undefined);
-      await prisma.accountInvitation.update({ where: { id: invitation.id }, data: { usedAt: null } });
-      throw new BadRequestException({ code: "ACTIVATION_INVALID" });
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") return activationInvalid();
+      throw error;
     }
   }
 }

@@ -92,6 +92,10 @@ El CI reproduce migraciones, pruebas, escaneo y build en `.github/workflows/ci.y
 
 Las rutas clínicas devuelven `Cache-Control: no-store, private`. La API registra decisiones con identificadores mínimos y la tabla de auditoría rechaza actualizaciones o eliminaciones ordinarias.
 
+## Personas, casos y agenda
+
+Recepción puede registrar una persona sin cuenta, abrir y asignar un caso, reservar, confirmar, reprogramar y cancelar citas o registrar asistencia. La activación posterior conserva la persona, su participación y el caso. Las operaciones se limitan al entorno sintético; la agenda se muestra en `America/Guayaquil`. Consulte el [recorrido, las decisiones y la evidencia del bloque 2](docs/16_evidencia_bloque_2.md).
+
 ## Documentación
 
 | Archivo | Uso |
