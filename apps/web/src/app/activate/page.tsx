@@ -15,8 +15,11 @@ export default function Activate() {
     // Keep the initial invitation out of referrers and the browser history.
     const location = window.location;
     const value = new URLSearchParams(location.hash.slice(1)).get("token") ?? new URLSearchParams(location.search).get("token");
-    setToken(value ?? "");
-    if (value) window.history.replaceState(null, "", location.pathname);
+    // A repeated development effect must preserve the token captured before URL cleanup.
+    if (value) {
+      setToken(value);
+      window.history.replaceState(null, "", location.pathname);
+    }
     setReady(true);
   }, []);
 
