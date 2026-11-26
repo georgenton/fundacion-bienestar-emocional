@@ -1,6 +1,6 @@
 # Operación y recuperación de staging sintético
 
-**Estado consolidado del 25 de noviembre de 2026, según la evidencia del operador:** el respaldo periódico en OVH y la sonda externa en Cloudflare están activos y verificados. OVH ejecuta los scripts operativos de `cbfb4521500ac69d8cc27908d2761d2e1cf524e9`; la aplicación conserva los tres digests de `0de373ac92b8facf611fd8ce03fe7daae03db649`. El monitor del host está instalado y deshabilitado. Los avisos automáticos a Outlook siguen pendientes de completar la aplicación y el acceso administrativo de Exchange; no se ha comprobado su recepción.
+**Estado consolidado del 26 de noviembre de 2026.** Se observaron dos respaldos del calendario regular en OVH y R2. La sonda externa en Cloudflare sigue activa. OVH ejecuta los scripts operativos de `cbfb4521500ac69d8cc27908d2761d2e1cf524e9` y la aplicación conserva los tres digests de `0de373ac92b8facf611fd8ce03fe7daae03db649`. El monitor del host está instalado y deshabilitado. El registro de aplicación FBE está pendiente de confirmación en Entra. La asignación en Exchange, la configuración de Graph y la recepción automática en Outlook siguen pendientes.
 
 La activación del respaldo consta en la [PR #15](https://github.com/georgenton/fundacion-bienestar-emocional/pull/15), la solicitud sin caché en la [PR #16](https://github.com/georgenton/fundacion-bienestar-emocional/pull/16) y la recuperación de la sonda en la [PR #17](https://github.com/georgenton/fundacion-bienestar-emocional/pull/17). La evidencia privada se conserva como observación de esa ejecución de Codex; revisar código y CI no vuelve a acreditar por sí solo los recursos de OVH, Cloudflare o Microsoft. El encargo restante está en [prompts/06_cierre_correo_operativo.md](../prompts/06_cierre_correo_operativo.md).
 
@@ -206,3 +206,53 @@ Según el informe del operador, la inspección del editor mostró un token efím
 El respaldo siguió activo y la lectura independiente de la copia histórica volvió a coincidir con su SHA-256. R2 mostró US$0,00 después de las pruebas, con 699,56 MB, 103,89 mil operaciones A y 13,74 mil operaciones B; esa lectura corresponde al período observado y sigue sujeta al consumo agregado y al desfase de contabilización. El operador reportó el clon público limpio y sincronizado en `d956a31dbb71e3d18199f04e0eb3ce72e00c8b7b`, con los tres trabajos del [CI 45667710515](https://github.com/georgenton/fundacion-bienestar-emocional/actions/runs/45667710515) aprobados. La aplicación conservó sus digests activos y PostgreSQL intacto.
 
 El monitor de host continúa instalado y deshabilitado. Los códigos de dispositivo de Exchange de aquella ejecución vencieron; queda completar el registro de aplicación en Entra y abrir una sesión administrativa de Exchange Online PowerShell para asignar y comprobar `Application Mail.Send` sobre el buzón remitente verificado. No hubo avisos automáticos recibidos en Outlook. El siguiente encargo se limita a ese transporte, su configuración en ambos monitores y la comprobación de recepción: [prompts/06_cierre_correo_operativo.md](../prompts/06_cierre_correo_operativo.md).
+
+## Comprobación del calendario y preparación de correo del 26 de noviembre de 2026
+
+El clon público avanzó sin cambios locales a `0afa27614bc709c2e7cd61096ea6a2fa6a53b4c9` ([PR #18](https://github.com/georgenton/fundacion-bienestar-emocional/pull/18)). En esa revisión, [CI 45682550967](https://github.com/georgenton/fundacion-bienestar-emocional/actions/runs/45682550967) aprobó `verify-block-1`, `docker-verify` y `publish-images`. El repositorio privado del Mac quedó intacto. La inspección en OVH confirmó los tres digests de la versión activa contra su manifiesto.
+
+| Disparo real en Ecuador | Objeto observado en R2 | Resultado en OVH |
+|---|---|---|
+| 25 de noviembre, 19:00 (26 de noviembre, 00:00 UTC) | `fbe/staging/fbe-staging-20261126T000001Z-ZqD0df5j.gpg` | Readback verificado, servicio completado en 4 s |
+| 26 de noviembre, 07:00 (12:00 UTC) | `fbe/staging/fbe-staging-20261126T120001Z-VUEmmE10.gpg` | Readback verificado, servicio completado en 4 s |
+
+El último objeto figura en R2 como Standard, de 19,31 kB según el panel. El servicio registró SHA-256 `6431fbfe54378d372f716f0bbdf5e6f2a290a71be2265df646cf3173c0cf2bdd` y persistió estado `verified`. `fbe-staging-backup.timer` estaba habilitado y activo. El siguiente disparo observado era el **26 de noviembre a las 19:00 de Ecuador (27 de noviembre, 00:00 UTC)**. Esta comprobación leyó systemd, el registro del servicio y los objetos de R2. Conservó la restauración aislada ya comprobada el 24 de noviembre. Sigue vigente la revisión de cuota del **30 de noviembre antes de las 18:00 de Ecuador**.
+
+En el Worker, KV confirmó una ejecución saludable el 26 de noviembre a las **11:20 de Ecuador (16:20 UTC)** y el calendario de cinco minutos indicaba las **11:25 (16:25 UTC)** como la siguiente ranura tras esa ejecución. Permanecen los dos eventos originales en KV, con cero intentos de correo. Corresponden al fallo de la sonda durante su configuración el 25 de noviembre a las 12:40:04 de Ecuador y su recuperación a las 13:00:04. La evidencia de esos eventos describe la sonda. El estado del Worker y su Cron se conservaron. El panel no mostraba variables Graph y `fbe-staging-monitor@host.timer` seguía deshabilitado e inactivo, sin disparos programados.
+
+### Conexión y alcance de Exchange preparados para ejecutar
+
+En el tenant verificado, la búsqueda `FBE` devolvió cero coincidencias en **App registrations** y en **Enterprise applications**. Quedó preparado `FBE Staging Monitor` como aplicación de tenant único, sin URI de redirección. El botón de registro del portal pide aceptar las políticas de Microsoft. Al registrar la aplicación, comprobar por separado el client ID y el Object ID de su service principal en **Enterprise applications**. Conservar esos valores, el tenant y el buzón en el inventario privado. La búsqueda realizada no acredita una revisión de concesiones de una aplicación ya creada.
+
+El Mac cargó PowerShell 7.6.7 y `ExchangeOnlineManagement` 3.10.1 en macOS 26.6.2. La combinación está soportada y se comprobó que el comando local dispone de `UserPrincipalName`. El inicio interactivo queda preparado con el UPN administrativo verificado, representado aquí por `$upn`. No se inició la sesión de Exchange ni se generó un código de dispositivo en esta comprobación. [Compatibilidad del módulo](https://learn.microsoft.com/en-us/powershell/exchange/exchange-online-powershell-v2?view=exchange-ps) · [Conexión interactiva](https://learn.microsoft.com/en-us/powershell/exchange/connect-to-exchange-online-powershell?view=exchange-ps).
+
+```powershell
+Import-Module ExchangeOnlineManagement -ErrorAction Stop
+Connect-ExchangeOnline -UserPrincipalName $upn -ShowBanner:$false -ErrorAction Stop
+
+$scopeName = 'FBE-Staging-Verified-Sender'
+$assignmentName = 'FBE-Staging-Mail-Send'
+$role = 'Application Mail.Send'
+$mailbox = Get-EXOMailbox -PrimarySmtpAddress $sender -Properties ExternalDirectoryObjectId -ErrorAction Stop
+$mailboxId = [guid]$mailbox.ExternalDirectoryObjectId
+$filter = "ExternalDirectoryObjectId -eq '$mailboxId'"
+$recipients = @(Get-EXORecipient -Filter $filter -ResultSize 2 -Properties ExternalDirectoryObjectId -ErrorAction Stop)
+if ($recipients.Count -ne 1 -or [guid]$recipients[0].ExternalDirectoryObjectId -ne $mailboxId) {
+    throw 'El filtro debe devolver exactamente el buzón remitente verificado.'
+}
+```
+
+Antes de escribir, comprobar en Exchange `Get-ServicePrincipal -Identity $servicePrincipalId`, `Get-ManagementScope -Identity $scopeName` y `Get-ManagementRoleAssignment -Identity $assignmentName`. Verificar coincidencia exacta de las identidades y revisar las asignaciones existentes del service principal con `Test-ServicePrincipalAuthorization -Identity $servicePrincipalId`. Reutilizar los recursos coincidentes. Si hay una diferencia de identidad, filtro, rol o alcance, resolverla antes de conceder acceso. Confirmar en **Enterprise applications → Permissions** la ausencia de una concesión de aplicación global `Mail.Send` de Microsoft Graph. Los permisos concedidos en Entra se acumulan con los de Exchange y el comando de prueba de Exchange solo evalúa estos últimos. [Application RBAC](https://learn.microsoft.com/en-us/exchange/permissions-exo/application-rbac) · [Propiedades filtrables](https://learn.microsoft.com/en-us/powershell/exchange/recipientfilter-properties?view=exchange-ps).
+
+Ejecutar cada alta únicamente si falta el recurso correspondiente. Antes de crear la asignación, volver a comprobar con `Get-EXORecipient -Filter` el filtro de destinatario persistido por `Get-ManagementScope -Identity $scopeName` y el mismo Object ID del buzón.
+
+```powershell
+New-ServicePrincipal -AppId $clientId -ObjectId $servicePrincipalId -DisplayName 'FBE Staging Monitor' -ErrorAction Stop
+New-ManagementScope -Name $scopeName -RecipientRestrictionFilter $filter -ErrorAction Stop
+New-ManagementRoleAssignment -Name $assignmentName -App $servicePrincipalId -Role $role -CustomResourceScope $scopeName -ErrorAction Stop
+Test-ServicePrincipalAuthorization -Identity $servicePrincipalId -Resource $sender -ErrorAction Stop
+```
+
+El resultado esperado es `Application Mail.Send` con `InScope=True` para el remitente aprobado. Si el inventario aporta un buzón técnico de contraste autorizado, repetir `Test-ServicePrincipalAuthorization` con ese buzón y comprobar `InScope=False` sin enviarle correo. En esta comprobación no se identificó un buzón de contraste autorizado y no se ejecutaron las verificaciones RBAC. Ambas configuraciones de Graph, los cuatro avisos en Outlook y la habilitación del timer del host siguen pendientes.
+
+Pasaron 9 pruebas locales con `PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s scripts/devops -p test_staging_automation.py -v` y 3 con `mise exec node@24.22.3 -- node --test scripts/devops/staging-public-monitor.test.mjs`. Cubren persistencia, reintento tras rechazo, conservación del ID y el destinatario configurado con sustitutos locales. La comprobación de recepción exige el mensaje en Outlook por ID y origen.
