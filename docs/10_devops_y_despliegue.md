@@ -88,6 +88,8 @@ El servicio `migrate` usa `restart: "no"`, termina tras `prisma migrate deploy` 
 
 La configuración aplica `APP_ENV=production` para activar el comportamiento correspondiente del servidor, mantiene `SYNTHETIC_DATA_ONLY=true` y prohíbe el seed automático. Los envíos reales de recuperación e invitaciones permanecen pendientes. El Compose sintético del bloque 2 habilita `ALLOW_SYNTHETIC_INVITATIONS=true` para usar su buzón local privado. El correo de los monitores conserva su configuración separada. Un seed sintético, si se necesita, es una operación puntual revisada, con credenciales temporales custodiadas; no una acción de cada deploy. El módulo worker actual no tiene un proceso daemon listo: no crear un contenedor que simule ese funcionamiento.
 
+Para el expediente sintético, el Compose declara el volumen privado `fbe-private-attachments` en `/workspace/.local/private-attachments`. Revisar la configuración de almacenamiento interpretada por Coolify y, tras la promoción, comprobar que la API puede escribir en ese montaje con el usuario de la imagen. Conservar el volumen al cambiar digests. El respaldo cifrado incluye los objetos referenciados por la misma instantánea SQL. [Almacenamiento persistente de Coolify](https://coolify.io/docs/applications/configuration/persistent-storage) · [Evidencia del bloque 3](17_evidencia_bloque_3.md).
+
 ## 6. Promoción y comprobación del entorno
 
 1. Obtener un run exitoso de `CI` con las tres imágenes publicadas y probadas. Conservar su SHA y manifiesto.

@@ -12,4 +12,8 @@ Los artefactos originales tienen caducidad informada el 8 de diciembre de 2026. 
 
 Un manifiesto acredita la referencia publicada y sus verificaciones declaradas, no una promoción actual a Coolify. La evidencia de staging identifica `0438bf9…` como la entrega promovida; `21282635…` se publicó después del cierre documental. La diferencia entre ambas referencias solo contiene documentación.
 
+## Entrega del bloque 3
+
+El 26 de noviembre se conservó el [manifiesto de `6cb2591`](6cb25913069cc7c73270eba94e3602557f0c682e.json), del [CI 45900301535](https://github.com/georgenton/fundacion-bienestar-emocional/actions/runs/45900301535), intento 1. El artefacto `15155178496` se descargó y su ZIP coincidió con el SHA-256 `2057088742b4669ce495c80f9e7a3bd0e2da73fa646326f1b4e9c87466c7d6e8`. El JSON coincidió con el artefacto del CI. La verificación de Coolify y la recuperación desde R2 se registran en la [evidencia del bloque 3](../17_evidencia_bloque_3.md).
+
 Estos archivos son registros históricos: no editarlos para representar otra entrega ni emplearlos como mecanismo para saltarse la validación de un run en el workflow de promoción. La conservación del JSON no conserva automáticamente las imágenes de GHCR; la política del registro debe mantener las versiones necesarias para recuperación.
