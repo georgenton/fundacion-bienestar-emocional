@@ -20,7 +20,14 @@ export class ClinicalRecordsService {
   list(actor: ActorContext, caseId: string) {
     return audited(actor, "RECORD_READ", "CareCase", caseId, () => clinicalTransaction(async (db, now) => {
       const assignment = await requireAssignment(db, actor, caseId, caseActions.recordRead, now);
-      const [encounters, appointments] = await Promise.all([
+      const metadataScope: Prisma.ClinicalNoteWhereInput = assignment.function === "INTERN"
+        ? { authorId: actor.accountId, assignmentId: assignment.id }
+        : { OR: [
+          { authorId: actor.accountId },
+          ...(assignment.function === "TREATING_PROFESSIONAL" ? [{ encounter: { professionalId: actor.accountId } }] : []),
+          ...(assignment.function === "SUPERVISOR" ? [{ practice: { supervisorId: actor.accountId } }] : []),
+        ] };
+      const [encounters, appointments, metadata] = await Promise.all([
         db.encounter.findMany({ where: { caseId }, orderBy: { occurredAt: "desc" }, include: {
           notes: {
             where: assignment.function === "INTERN" ? { authorId: actor.accountId, assignmentId: assignment.id } : {
@@ -37,9 +44,34 @@ export class ClinicalRecordsService {
           where: { caseId, professionalId: actor.accountId, status: "CONFIRMED", encounter: null },
           select: { id: true, startsAt: true, modality: true, attendance: true }, orderBy: { startsAt: "desc" }, take: 40,
         }) : [],
+        db.clinicalNote.findMany({
+          where: { encounter: { caseId }, AND: metadataScope },
+          select: { id: true, encounterId: true, status: true, authorFunction: true,
+            author: { select: { person: { select: { displayName: true } } } },
+            practice: { select: { supervisor: { select: { person: { select: { displayName: true } } } } } },
+          },
+          orderBy: { recordedAt: "asc" },
+        }),
       ]);
+      const byEncounter = new Map<string, typeof metadata>();
+      for (const note of metadata) {
+        const entries = byEncounter.get(note.encounterId) ?? [];
+        entries.push(note);
+        byEncounter.set(note.encounterId, entries);
+      }
+      const records = encounters.map(encounter => {
+        const entries = byEncounter.get(encounter.id) ?? [];
+        const pending = entries.filter(note => note.status !== "VALIDATED");
+        return { ...encounter,
+          documentation: { total: entries.length, validated: entries.length - pending.length, pending: pending.length },
+          pendingNotes: pending.map(note => ({
+            id: note.id, status: note.status, authorFunction: note.authorFunction,
+            responsibleName: note.practice?.supervisor.person.displayName ?? note.author.person.displayName,
+          })),
+        };
+      });
       await audit(db, actor, "RECORD_READ", "CareCase", caseId);
-      return { encounters, appointments, function: assignment.function, actorId: actor.accountId };
+      return { encounters: records, appointments, function: assignment.function, actorId: actor.accountId };
     }));
   }
 
@@ -72,7 +104,6 @@ export class ClinicalRecordsService {
         id: encounterId, caseId, careCase: { status: "OPEN" },
       } });
       if (!encounter) unavailable();
-      if (encounter.status !== "OPEN") conflict("ENCOUNTER_NOT_OPEN");
       const note = await db.clinicalNote.create({ data: {
         encounterId, narrative, occurredAt: encounter.occurredAt, authorId: actor.accountId,
         assignmentId: assignment.id, authorFunction: assignment.function, practiceId: assignment.practiceId, templateVersion,
@@ -149,11 +180,9 @@ export class ClinicalRecordsService {
   complete(actor: ActorContext, caseId: string, encounterId: string) {
     return audited(actor, "ENCOUNTER_COMPLETE", "Encounter", encounterId, () => clinicalTransaction(async (db, now) => {
       await requireAssignment(db, actor, caseId, caseActions.encounterOpen, now);
-      const item = await db.encounter.findFirst({ where: { id: encounterId, caseId, professionalId: actor.accountId },
-        include: { notes: { select: { status: true } } } });
+      const item = await db.encounter.findFirst({ where: { id: encounterId, caseId, professionalId: actor.accountId } });
       if (!item) unavailable();
       if (item.status === "COMPLETED") return item;
-      if (!item.notes.length || item.notes.some(note => note.status !== "VALIDATED")) conflict("ENCOUNTER_REVIEW_PENDING");
       const saved = await db.encounter.update({ where: { id: encounterId }, data: { status: "COMPLETED", completedAt: now } });
       await audit(db, actor, "ENCOUNTER_COMPLETE", "Encounter", encounterId);
       return saved;

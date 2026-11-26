@@ -120,14 +120,42 @@ try {
 
   phase = "aceptar dos finalidades desde el portal móvil";
   await openCase(patient, care.id, true);
+  let careConsentId;
   for (const purpose of ["Atención individual", "Participación supervisada de pasante"]) {
     const card = patient.locator("article").filter({ has: patient.getByRole("heading", { name: new RegExp(purpose) }) });
     await card.getByRole("checkbox").check();
     const accepted = patient.waitForResponse(response => response.url() === `${api}/api/${path}/consents` && response.request().method() === "POST");
     await card.getByRole("button", { name: "Aceptar texto de prueba" }).click();
-    assert.equal((await accepted).status(), 201, phase);
+    const response = await accepted;
+    assert.equal(response.status(), 201, phase);
+    if (purpose === "Atención individual") careConsentId = (await response.json()).id;
     await card.getByRole("button", { name: "Retirar aceptación" }).waitFor();
   }
+
+  phase = "retirar la aceptación anterior después de publicar otra versión";
+  const revisedTemplate = await call(coordinator, "clinical/consent-templates", {
+    purpose: "CARE", body: "Nueva versión ficticia para comprobar la retirada de la aceptación previa.",
+  });
+  await button(patient, "Documentos").click();
+  await button(patient, "Consentimientos").click();
+  const consentCard = patient.locator("article").filter({
+    has: patient.getByRole("heading", { name: new RegExp(`Atención individual · Versión ${revisedTemplate.version}`) }),
+  });
+  const withdrawing = patient.waitForResponse(response =>
+    response.url() === `${api}/api/${path}/consents/${careConsentId}/withdraw` && response.request().method() === "POST");
+  await consentCard.getByRole("button", { name: "Retirar aceptación", exact: true }).click();
+  const withdrawal = await withdrawing;
+  assert.equal(withdrawal.status(), 201, phase);
+  assert.equal((await withdrawal.json()).id, careConsentId);
+  await consentCard.getByText("Retirado. Revisión del proceso pendiente.", { exact: true }).waitFor();
+  await consentCard.getByRole("checkbox").check();
+  const acceptingNew = patient.waitForResponse(response =>
+    response.url() === `${api}/api/${path}/consents` && response.request().method() === "POST");
+  await consentCard.getByRole("button", { name: "Aceptar texto de prueba", exact: true }).click();
+  const newAcceptance = await acceptingNew;
+  assert.equal(newAcceptance.status(), 201, phase);
+  assert.equal((await newAcceptance.json()).templateId, revisedTemplate.id);
+  await consentCard.getByRole("button", { name: "Retirar aceptación", exact: true }).waitFor();
 
   phase = "abrir atención y validar nota con adenda";
   await openCase(professional, care.id);
@@ -179,7 +207,24 @@ try {
   const download = patient.waitForEvent("download");
   await button(patient, "Descargar Resumen ficticio del expediente").click();
   assert.deepEqual(await readFile(await (await download).path()), content);
-  console.log("Chromium escritorio y viewport móvil: cita, consentimientos, expediente, adenda, supervisión, horas y descarga privada verificados.");
+
+  phase = "concluir la atención conservando documentación pendiente y agregar una nota posterior";
+  await openCase(intern, care.id);
+  await label(intern, "Nota sintética").fill("Borrador ficticio pendiente de documentación.");
+  const pending = await submit(intern, "Crear borrador", `${path}/encounters/${encounter.id}/notes`);
+  await button(professional, "Atenciones y notas").click();
+  await professional.getByText(/Documentación a su cargo:.*1 pendientes/).waitFor();
+  const completed = await submit(professional, "Concluir atención", `${path}/encounters/${encounter.id}/complete`);
+  assert.equal(completed.status, "COMPLETED");
+  await professional.getByText("Concluida", { exact: true }).waitFor();
+  const record = await call(professional, path);
+  assert(record.encounters[0].pendingNotes.some(item => item.id === pending.id && item.status === "DRAFT"));
+  await label(professional, "Nota sintética").fill("Registro posterior íntegramente ficticio.");
+  const late = await submit(professional, "Registrar borrador posterior", `${path}/encounters/${encounter.id}/notes`);
+  assert.equal(late.status, "DRAFT");
+  assert.equal(late.occurredAt, encounter.occurredAt);
+  await professional.getByText(/Documentación a su cargo:.*2 pendientes/).waitFor();
+  console.log("Chromium escritorio y viewport móvil: consentimiento anterior retirable, expediente, supervisión, descarga privada y cierre con documentación pendiente verificados.");
 } catch (error) {
   console.error(`Falló el recorrido sintético en la etapa ${phase}.`);
   throw error;

@@ -16,7 +16,9 @@ type Note = { id: string; authorId: string; authorFunction: ClinicalFunction; st
   version: number; narrative: string; templateVersion: string; recordedAt: string; validatedAt: string | null;
   addenda: { id: string; createdAt: string; reason: string; narrative: string }[];
   reviews: { id: string; createdAt: string; transition: keyof typeof noteStates; remarks: string | null }[] };
-type Encounter = { id: string; status: "OPEN" | "COMPLETED"; occurredAt: string; notes: Note[] };
+type Encounter = { id: string; status: "OPEN" | "COMPLETED"; occurredAt: string; notes: Note[];
+  documentation: { total: number; validated: number; pending: number };
+  pendingNotes: { id: string; status: keyof typeof noteStates; authorFunction: ClinicalFunction; responsibleName: string }[] };
 type ClinicalRecord = { encounters: Encounter[]; appointments: { id: string; startsAt: string }[];
   function: ClinicalFunction; actorId: string };
 
@@ -40,11 +42,22 @@ export function Records({ path, request }: { path: string; request: Requester })
     {stage.encounters.map(encounter => <article className="record" key={encounter.id}>
       <h4>Atención del {dateLabel(encounter.occurredAt)}</h4>
       <p>{encounter.status === "OPEN" ? "Abierta" : "Concluida"}</p>
-      {encounter.status === "OPEN" && <form onSubmit={onForm(form => void action.run(() =>
+      <p>Documentación a su cargo: {encounter.documentation.total} notas,
+        {" "}{encounter.documentation.validated} validadas y {encounter.documentation.pending} pendientes.</p>
+      {encounter.pendingNotes.length > 0 && <details>
+        <summary>Pendientes de documentación</summary>
+        <ul>{encounter.pendingNotes.map(note => <li key={note.id}>
+          {noteStates[note.status]} · {functions[note.authorFunction]} · Responsable: {note.responsibleName}
+        </li>)}</ul>
+      </details>}
+      {encounter.status === "COMPLETED" && <p className="muted">
+        La atención concluyó. Los nuevos aportes conservan su fecha de registro y siguen su propio proceso de revisión.
+      </p>}
+      <form onSubmit={onForm(form => void action.run(() =>
         request(`${path}/encounters/${encounter.id}/notes`, { narrative: form.get("narrative") })))}>
         <label>Nota sintética<textarea name="narrative" required maxLength={8000} rows={3} /></label>
-        <button disabled={action.busy}>Crear borrador</button>
-      </form>}
+        <button disabled={action.busy}>{encounter.status === "OPEN" ? "Crear borrador" : "Registrar borrador posterior"}</button>
+      </form>
       {encounter.notes.map(note => <NoteCard key={`${note.id}-${note.version}`} note={note} stage={stage}
         path={path} request={request} refresh={data.reload} />)}
       {encounter.status === "OPEN" && stage.function === "TREATING_PROFESSIONAL" &&

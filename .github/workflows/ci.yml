@@ -52,6 +52,10 @@ jobs:
       - run: pnpm test
       - run: pnpm demo:verify
       - run: pnpm build
+      - name: Install pinned Chromium headless shell and Linux dependencies
+        run: pnpm exec playwright install --with-deps --only-shell chromium
+      - name: Verify synthetic browser journeys against the compiled application
+        run: node scripts/verify-browser-ci.mjs
       - name: Verify release eligibility boundaries
         run: node --test scripts/devops/release-validation.test.mjs
       - name: Verify staging operations scripts
