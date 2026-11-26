@@ -1,6 +1,6 @@
 # Operación y recuperación de staging sintético
 
-**Estado consolidado del 26 de noviembre de 2026.** Se observaron dos respaldos del calendario regular en OVH y R2. La sonda externa en Cloudflare sigue activa. OVH ejecuta los scripts operativos de `cbfb4521500ac69d8cc27908d2761d2e1cf524e9` y la aplicación conserva los tres digests de `0de373ac92b8facf611fd8ce03fe7daae03db649`. El monitor del host está instalado y deshabilitado. El registro de aplicación FBE está pendiente de confirmación en Entra. La asignación en Exchange, la configuración de Graph y la recepción automática en Outlook siguen pendientes.
+**Estado consolidado del 26 de noviembre de 2026.** Se observaron dos respaldos del calendario regular en OVH y R2. La sonda externa en Cloudflare sigue activa. OVH ejecuta los scripts operativos de `cbfb4521500ac69d8cc27908d2761d2e1cf524e9` y la aplicación conserva los tres digests de `0de373ac92b8facf611fd8ce03fe7daae03db649`. El monitor del host está instalado y deshabilitado. La aplicación de tenant único y su service principal están verificados. Exchange autorizó `Application Mail.Send` sobre el único remitente aprobado. La configuración de Graph y la recepción automática en Outlook siguen pendientes.
 
 La activación del respaldo consta en la [PR #15](https://github.com/georgenton/fundacion-bienestar-emocional/pull/15), la solicitud sin caché en la [PR #16](https://github.com/georgenton/fundacion-bienestar-emocional/pull/16) y la recuperación de la sonda en la [PR #17](https://github.com/georgenton/fundacion-bienestar-emocional/pull/17). La evidencia privada se conserva como observación de esa ejecución de Codex; revisar código y CI no vuelve a acreditar por sí solo los recursos de OVH, Cloudflare o Microsoft. El encargo restante está en [prompts/06_cierre_correo_operativo.md](../prompts/06_cierre_correo_operativo.md).
 
@@ -256,3 +256,19 @@ Test-ServicePrincipalAuthorization -Identity $servicePrincipalId -Resource $send
 El resultado esperado es `Application Mail.Send` con `InScope=True` para el remitente aprobado. Si el inventario aporta un buzón técnico de contraste autorizado, repetir `Test-ServicePrincipalAuthorization` con ese buzón y comprobar `InScope=False` sin enviarle correo. En esta comprobación no se identificó un buzón de contraste autorizado y no se ejecutaron las verificaciones RBAC. Ambas configuraciones de Graph, los cuatro avisos en Outlook y la habilitación del timer del host siguen pendientes.
 
 Pasaron 9 pruebas locales con `PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s scripts/devops -p test_staging_automation.py -v` y 3 con `mise exec node@24.22.3 -- node --test scripts/devops/staging-public-monitor.test.mjs`. Cubren persistencia, reintento tras rechazo, conservación del ID y el destinatario configurado con sustitutos locales. La comprobación de recepción exige el mensaje en Outlook por ID y origen.
+
+### Aplicación de Entra y autorización de Exchange verificadas
+
+El titular registró `FBE Staging Monitor` como aplicación de tenant único. En **Enterprise applications**, el service principal mostró el mismo client ID y un Object ID distinto del objeto de **App registrations**. La pestaña **Permissions → Admin consent** mostró cero permisos concedidos. Los identificadores y la dirección del buzón quedan en el inventario privado.
+
+La sesión interactiva de `ExchangeOnlineManagement` 3.10.1 en el Mac quedó conectada con token activo. Antes del alta se comprobó que no existían la referencia de Exchange, el scope ni la asignación de FBE. Se creó la referencia con el Object ID de **Enterprise applications** y se verificó su correspondencia con el client ID. `Get-EXORecipient -Filter` devolvió exactamente el buzón verificado tanto con el filtro propuesto como con el `RecipientFilter` persistido de `FBE-Staging-Verified-Sender`. La asignación `FBE-Staging-Mail-Send` produjo una sola fila en `Test-ServicePrincipalAuthorization` para ese remitente.
+
+| Rol | Permiso | Alcance | Tipo de alcance | Resultado |
+|---|---|---|---|---|
+| `Application Mail.Send` | `Mail.Send` | `FBE-Staging-Verified-Sender` | `CustomRecipientScope` | `InScope=True` |
+
+La prueba directa con un segundo buzón sigue pendiente porque el inventario consultado no identifica uno autorizado para contraste. La comprobación de esta etapa demuestra el alcance de Exchange y la ausencia de concesiones en Entra observada en el portal. Aún falta comprobar el envío por Graph y los mensajes recibidos en Outlook.
+
+El archivo privado de Graph aún no existía en OVH. Una entrada sintética verificó que la terminal de Coolify admite entrada sin eco. En Cloudflare quedó preparado el formulario para producción, con la opción de vista previa sin seleccionar. La creación del secreto de 90 días y su instalación en los dos destinos requieren la confirmación de la operación en el navegador. Durante esa preparación se mantuvieron activos el respaldo y la sonda externa. El monitor del host sigue deshabilitado y no se verificaron avisos nuevos en Outlook.
+
+El [CI 45859043943](https://github.com/georgenton/fundacion-bienestar-emocional/actions/runs/45859043943) de `2a1025f74f31d1b09e6fdfcab7d99d73f0360fb8` aprobó `verify-block-1`, `docker-verify` y `publish-images`. El registro de esta etapa parte de esa revisión. La aplicación de staging continúa en los digests previamente comprobados.
