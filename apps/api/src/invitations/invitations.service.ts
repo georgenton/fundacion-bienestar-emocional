@@ -36,7 +36,8 @@ export class InvitationsService {
       const now = new Date();
       await this.policy.requireCurrentCapability(db, actor, capability, now);
       const role = await db.role.findUnique({ where: { code: roleCode } });
-      if (!role || (personId && (role.isStaff || role.isClinical))) invalid("ROLE_INVALID");
+      if (!role || role.code === "CLINICAL_COORDINATOR" ||
+          (personId && (role.isStaff || role.isClinical))) invalid("ROLE_INVALID");
       const person = personId && await db.person.findFirst({
         where: { id: personId, synthetic: true, archivedAt: null },
         select: { displayName: true, userAccount: { select: { id: true } } },

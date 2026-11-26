@@ -28,8 +28,11 @@ services:
       DATABASE_URL: ${DATABASE_URL:?Set the private runtime connection}
       ALLOW_SYNTHETIC_SEED: "false"
       ALLOW_SYNTHETIC_INVITATIONS: "true"
+      FBE_PRIVATE_ATTACHMENTS_DIR: /workspace/.local/private-attachments
       SYNTHETIC_DATA_ONLY: "true"
       LOG_LEVEL: info
+    volumes:
+      - fbe-private-attachments:/workspace/.local/private-attachments
     expose: ["3001"]
     depends_on:
       migrate:
@@ -61,3 +64,6 @@ services:
     cpus: 0.5
     pids_limit: 128
     stop_grace_period: 30s
+
+volumes:
+  fbe-private-attachments:

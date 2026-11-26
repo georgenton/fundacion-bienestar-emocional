@@ -211,7 +211,8 @@ describe("Personas y agenda con PostgreSQL", () => {
     expect(replay.body).toEqual(confirmed.body);
     expectError(await change(original.id, "confirm", { version: 2 }, confirmation), 409, "REQUEST_ID_CONFLICT");
 
-    await prisma.appointment.update({ where: { id: adjacent.body.id }, data: { holdExpiresAt: new Date(Date.now() - 10) } });
+    await prisma.$executeRaw`UPDATE "Appointment" SET "holdExpiresAt" = clock_timestamp() - interval '1 second'
+      WHERE id = ${adjacent.body.id}::uuid`;
     expectError(await change(adjacent.body.id, "confirm", { version: 1 }), 409, "HOLD_EXPIRED");
     expect((await agenda()).body.appointments.some((item: Appointment) => item.id === adjacent.body.id)).toBe(false);
     expect((await hold("10:00")).status).toBe(201);

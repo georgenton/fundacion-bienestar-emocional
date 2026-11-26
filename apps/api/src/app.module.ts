@@ -17,9 +17,17 @@ import { CatalogService } from "./agenda/catalog.service.js";
 import { AppointmentsController } from "./agenda/appointments.controller.js";
 import { AppointmentsService } from "./agenda/appointments.service.js";
 
+import { ClinicalController } from "./clinical/clinical.controller.js";
+import { ClinicalCoordinationService } from "./clinical/clinical-coordination.service.js";
+import { ClinicalRecordsService } from "./clinical/clinical-records.service.js";
+import { ConsentsService } from "./clinical/consents.service.js";
+import { DocumentsService } from "./clinical/documents.service.js";
+import { PracticesService } from "./clinical/practices.service.js";
+
 @Module({
   controllers: [HealthController, MeController, CasesController, AccountsController, InvitationsController,
-    PeopleCasesController, CatalogController, AppointmentsController],
-  providers: [SessionGuard, AccessPolicyService, AccountsService, InvitationsService, PeopleCasesService, CatalogService, AppointmentsService],
+    PeopleCasesController, CatalogController, AppointmentsController, ClinicalController],
+  providers: [SessionGuard, AccessPolicyService, AccountsService, InvitationsService, PeopleCasesService, CatalogService, AppointmentsService,
+    ClinicalCoordinationService, ClinicalRecordsService, ConsentsService, DocumentsService, PracticesService],
 })
 export class AppModule {}

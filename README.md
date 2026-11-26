@@ -1,8 +1,8 @@
 # Plataforma de la Fundación para el Bienestar Emocional
 
-Entrega verificable de los bloques 1 y 2 (FBE-001 a FBE-008), preparada para Jorge Quizamanchuro y para validación institucional de David Jaramillo. Usa exclusivamente identidades y casos sintéticos.
+Entrega de los bloques 1 a 3 (FBE-001 a FBE-012), preparada para Jorge Quizamanchuro y para validación institucional de David Jaramillo. Usa exclusivamente identidades y casos sintéticos.
 
-La web y la API permiten trabajar con personas, casos y agenda sintéticos sobre la identidad, MFA y autorización del bloque 1. La atención real sigue sujeta a los criterios del piloto institucional. El expediente, los pagos y el video se abordarán en sus bloques.
+La web y la API permiten trabajar con personas, casos, agenda y expediente sintéticos sobre la identidad, MFA y autorización del bloque 1. La atención real sigue sujeta a los criterios del piloto institucional. Pagos y video corresponden a bloques posteriores.
 
 ## Repositorio público y auditoría
 
@@ -10,7 +10,7 @@ Repositorio canónico: [georgenton/fundacion-bienestar-emocional](https://github
 
 Esta historia pública comienza con una copia saneada del ZIP del bloque 1 y las correcciones de la auditoría independiente del 24 de noviembre de 2026. El ZIP identifica el commit local `5c325950cff66dd9d215761f08ee0be5e4555bae`, pero no contiene su historial Git. La copia original del Mac se conserva en privado; el desarrollo público continúa desde un clon nuevo de este repositorio. Véanse [procedencia y autorizaciones](docs/11_autorizaciones_codex_y_publicacion.md) y [auditoría independiente](docs/12_auditoria_independiente_2026-11-24.md).
 
-Las correcciones añaden verificación MFA por sesión, aislamiento del resultado mostrado al cambiar de cuenta, comprobación de origen en mutaciones y coherencia entre asignaciones y listados. El bloque 2 lleva el esquema a cuatro migraciones y agrega la pantalla `/activate` para las invitaciones del buzón sintético.
+Las correcciones añaden verificación MFA por sesión, aislamiento del resultado mostrado al cambiar de cuenta, comprobación de origen en mutaciones y coherencia entre asignaciones y listados. El bloque 2 agrega la pantalla `/activate` para las invitaciones del buzón sintético. El bloque 3 lleva el esquema a cinco migraciones.
 
 ## Requisitos fijados
 
@@ -95,6 +95,10 @@ Las rutas clínicas devuelven `Cache-Control: no-store, private`. La API registr
 ## Personas, casos y agenda
 
 Recepción puede registrar una persona sin cuenta, abrir y asignar un caso, reservar, confirmar, reprogramar y cancelar citas o registrar asistencia. La activación posterior conserva la persona, su participación y el caso. Las operaciones se limitan al entorno sintético; la agenda se muestra en `America/Guayaquil`. Consulte el [recorrido, las decisiones y la evidencia del bloque 2](docs/16_evidencia_bloque_2.md).
+
+## Expediente y prácticas
+
+Con cuentas sintéticas, coordinación otorga alcance por caso, el paciente acepta un texto de prueba y el profesional abre una atención desde una cita confirmada. La nota validada conserva autoría y se corrige mediante adendas. El pasante trabaja con alcance vigente y supervisor explícito. Los documentos seleccionados se publican por versión y destinatario. Consulte el [recorrido y la evidencia del bloque 3](docs/17_evidencia_bloque_3.md).
 
 ## Documentación
 

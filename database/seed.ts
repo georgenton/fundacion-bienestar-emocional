@@ -15,6 +15,7 @@ if (!config.allowSyntheticSeed || config.appEnv === "production" || !config.synt
 }
 
 const roles = [
+  { code: "CLINICAL_COORDINATOR", description: "Coordinación por caso sin lectura clínica implícita", isStaff: true, isClinical: true },
   { code: "OPERATIONS_ADMIN", description: "Administración operativa sin acceso clínico", isStaff: true, isClinical: false },
   { code: "RECEPTION", description: "Recepción y vista operativa", isStaff: true, isClinical: false },
   { code: "PROFESSIONAL", description: "Profesional con acceso solo por asignación", isStaff: true, isClinical: true },
@@ -36,6 +37,8 @@ const capabilityDefinitions = [
   [capabilities.patientInvite, "Invitar a una persona registrada con rol paciente"],
   [capabilities.agendaManage, "Capacidad administrativa de agenda"],
   [capabilities.agendaConfigure, "Configuración sintética de agenda"],
+  [capabilities.clinicalCoordinate, "Otorgar alcance clínico por caso"],
+  [capabilities.practiceCoordinate, "Coordinar prácticas sintéticas"],
 ] as const;
 
 const blockTwoCapabilities = [
@@ -46,6 +49,7 @@ const blockTwoCapabilities = [
 const roleCapabilities: Record<string, string[]> = {
   OPERATIONS_ADMIN: ["case:list:all", "account:disable", "account:invite", "audit:read", ...blockTwoCapabilities],
   RECEPTION: ["case:list:all", "case:overview:read", ...blockTwoCapabilities],
+  CLINICAL_COORDINATOR: [capabilities.clinicalCoordinate, capabilities.practiceCoordinate, capabilities.caseListAll, capabilities.caseOverviewRead],
   PROFESSIONAL: [],
   SUPERVISOR: [],
   INTERN: [],
@@ -54,12 +58,17 @@ const roleCapabilities: Record<string, string[]> = {
 };
 
 const actorDefinitions = [
+  ["clinicalCoordinator", "Coordinación Clínica Sintética", "coordination@example.test", "CLINICAL_COORDINATOR"],
   ["operationsAdmin", "Administración Operativa Sintética", "operations.admin@example.test", "OPERATIONS_ADMIN"],
   ["reception", "Recepción Sintética", "reception@example.test", "RECEPTION"],
   ["professional", "Profesional Sintético", "professional@example.test", "PROFESSIONAL"],
   ["professionalB", "Profesional B Sintético", "professional-b@example.test", "PROFESSIONAL"],
+  ["clinicalSupervisor", "Supervisor de Expediente Sintético", "clinical-supervisor@example.test", "SUPERVISOR"],
+  ["supervisorB", "Supervisor B Sintético", "supervisor-b@example.test", "SUPERVISOR"],
   ["supervisor", "Supervisor Sintético", "supervisor@example.test", "SUPERVISOR"],
   ["intern", "Pasante Sintético", "intern@example.test", "INTERN"],
+  ["clinicalPatient", "Paciente de Expediente Sintético", "clinical-patient@example.test", "PATIENT"],
+  ["clinicalSupport", "Soporte de Expediente Sintético", "clinical-support@example.test", "SUPPORT"],
   ["patient", "Paciente Sintético", "patient@example.test", "PATIENT"],
   ["support", "Soporte Sintético", "support@example.test", "SUPPORT"],
 ] as const;

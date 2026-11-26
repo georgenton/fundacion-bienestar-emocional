@@ -37,7 +37,7 @@ COPY --from=build /workspace/node_modules ./node_modules
 COPY --from=build /workspace/apps/api/node_modules ./apps/api/node_modules
 COPY --from=build /workspace/packages ./packages
 COPY --from=build /workspace/apps/api/dist ./apps/api/dist
-RUN mkdir -p /workspace/.local && chown node:node /workspace/.local && chmod 0700 /workspace/.local
+RUN install -d -o node -g node -m 0700 /workspace/.local /workspace/.local/private-attachments
 USER node
 EXPOSE 3001
 HEALTHCHECK --interval=10s --timeout=3s --retries=6 CMD node -e "fetch('http://127.0.0.1:3001/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"

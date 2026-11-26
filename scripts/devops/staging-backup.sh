@@ -34,32 +34,23 @@ jq -e '
 
 scratch=$(mktemp -d "${TMPDIR:-/tmp}/fbe-backup.XXXXXXXX")
 cipher_tmp=
-trap 'if [[ -n "$cipher_tmp" ]]; then rm -f -- "$cipher_tmp"; fi; rm -f -- "$scratch/database.dump" "$scratch/captured-at"; rmdir -- "$scratch"' EXIT
+trap 'if [[ -n "$cipher_tmp" ]]; then rm -f -- "$cipher_tmp"; fi; rm -r -- "$scratch"' EXIT
 cipher_tmp=$(mktemp "${output%/*}/.fbe-cipher.XXXXXXXX")
 date +%s >"$scratch/captured-at"
 
-# The container uses its existing PostgreSQL client and credentials internally.
-# Never accept another database name or print connection values.
-if ! docker exec "$source_container" sh -ceu '
-  test "$POSTGRES_DB" = fbe_staging
-  export PGPASSWORD="$POSTGRES_PASSWORD"
-  approved=$(psql -XAtq -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d fbe_staging -c '\''
-    SELECT NOT EXISTS (SELECT FROM public."Person" WHERE synthetic IS DISTINCT FROM true)
-       AND NOT EXISTS (SELECT FROM public."CareCase" WHERE synthetic IS DISTINCT FROM true)
-  '\'')
-  test "$approved" = t
-  exec pg_dump --format=custom --no-password -U "$POSTGRES_USER" -d fbe_staging
-' >"$scratch/database.dump" 2>/dev/null; then
-  echo 'FBE synthetic source validation or PostgreSQL dump failed.' >&2
+archive=(database.dump captured-at)
+if ! bash "$(dirname "$0")/staging-attachment-snapshot.sh" "$source_container" "${FBE_BACKUP_API_CONTAINER:-}" "$scratch"; then
+  echo 'FBE PostgreSQL or private attachment snapshot failed.' >&2
   exit 1
 fi
+if [[ -f "$scratch/attachments.json" ]]; then archive+=(attachments.json attachments); fi
 if ! docker exec -i "$source_container" pg_restore --file=/dev/null <"$scratch/database.dump" 2>/dev/null; then
   echo 'PostgreSQL archive validation failed.' >&2
   exit 1
 fi
 
 # Only ciphertext reaches the output directory. The recovery private key stays off-host.
-tar -C "$scratch" -cf - database.dump captured-at \
+tar -C "$scratch" -cf - "${archive[@]}" \
   -C "$(cd "$recovery" && pwd -P)" "${material[@]}" |
   gpg --batch --yes --trust-model always --recipient "$recipient" \
     --output "$cipher_tmp" --encrypt

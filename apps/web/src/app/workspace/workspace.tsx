@@ -6,8 +6,10 @@ import { Agenda } from "./agenda";
 import { CatalogPane } from "./catalog";
 import type { Requester } from "./common";
 import { People } from "./people";
+import { ClinicalWorkspace } from "./clinical/workspace";
+import { Practices } from "./clinical/practices";
 
-type Pane = "people" | "cases" | "agenda" | "catalog";
+type Pane = "people" | "cases" | "agenda" | "catalog" | "clinical" | "practices";
 type SessionScope = { capabilities: string[]; roleCodes: string[] };
 const emptyCatalog: Catalog = { services: [], professionals: [], timezone: "America/Guayaquil" };
 
@@ -61,12 +63,15 @@ export function Workspace({ onSessionError }: { onSessionError: (code: string) =
   const canSeeAgenda = canManageAgenda || scope?.roleCodes.some(role => role === "PATIENT" || role === "PROFESSIONAL");
   const canSeePeople = scope?.capabilities.includes("person:manage");
   const canConfigure = scope?.capabilities.includes("agenda:configure");
+  const coordinator = scope?.capabilities.includes("case:clinical:coordinate") ?? false;
+  const clinical = coordinator || scope?.roleCodes.some(role => ["PATIENT", "PROFESSIONAL", "SUPERVISOR", "INTERN"].includes(role));
+  const practices = coordinator || scope?.roleCodes.some(role => ["SUPERVISOR", "INTERN"].includes(role));
 
   async function selectPane(next: Pane, bookingCase = "") {
     setMessage("");
     setInitialCase(bookingCase);
     setPane(next);
-    if (next === "cases" || (next === "agenda" && canManageAgenda)) {
+    if (next === "cases" || next === "clinical" || (next === "agenda" && canManageAgenda)) {
       try {
         setCases(await request<CaseSummary[]>("cases"));
       } catch (error) {
@@ -81,6 +86,8 @@ export function Workspace({ onSessionError }: { onSessionError: (code: string) =
     ...(canSeePeople ? [["people", "Personas"]] as [Pane, string][] : []),
     ["cases", "Casos"],
     ...(canSeeAgenda ? [["agenda", "Agenda"]] as [Pane, string][] : []),
+    ...(clinical ? [["clinical", scope.roleCodes.includes("PATIENT") ? "Consentimientos y documentos" : "Expediente"]] as [Pane, string][] : []),
+    ...(practices ? [["practices", "Prácticas y horas"]] as [Pane, string][] : []),
     ...(canConfigure ? [["catalog", "Configuración"]] as [Pane, string][] : []),
   ];
 
@@ -95,6 +102,8 @@ export function Workspace({ onSessionError }: { onSessionError: (code: string) =
       {pane === "cases" ? <CaseList request={request} cases={cases} /> : null}
       {pane === "agenda" && canSeeAgenda ? <Agenda key={initialCase} request={request} catalog={catalog}
         canManage={canManageAgenda} initialCase={initialCase} cases={cases} /> : null}
+      {pane === "clinical" && clinical ? <ClinicalWorkspace cases={cases} roles={scope.roleCodes} coordinator={coordinator} request={request} /> : null}
+      {pane === "practices" && practices ? <Practices request={request} coordinator={coordinator} /> : null}
       {pane === "catalog" && canConfigure ? <CatalogPane request={request} catalog={catalog} reload={reloadCatalog} /> : null}
     </div>
   );

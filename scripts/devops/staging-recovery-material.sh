@@ -29,8 +29,9 @@ docker inspect "$api" | jq -er '
     error("Unexpected FBE safety configuration")
   else . end |
   . as $env |
-  ["APP_ENV","APP_NAME","API_PORT","WEB_ORIGIN","BETTER_AUTH_URL","BETTER_AUTH_SECRET",
-   "AUTH_RESET_TOKEN_TTL_SECONDS","DATABASE_URL","ALLOW_SYNTHETIC_SEED","SYNTHETIC_DATA_ONLY","LOG_LEVEL"][] as $key |
+  (["APP_ENV","APP_NAME","API_PORT","WEB_ORIGIN","BETTER_AUTH_URL","BETTER_AUTH_SECRET",
+   "AUTH_RESET_TOKEN_TTL_SECONDS","DATABASE_URL","ALLOW_SYNTHETIC_SEED","SYNTHETIC_DATA_ONLY","LOG_LEVEL"] +
+    (["ALLOW_SYNTHETIC_INVITATIONS","FBE_PRIVATE_ATTACHMENTS_DIR"] | map(select($env[.] != null))))[] as $key |
   if ($env[$key] | type) == "string" and ($env[$key] | length) > 0 and
      ($env[$key] | test("[\r\n]") | not) then "\($key)=\($env[$key])"
   else error("Required FBE setting is missing") end
@@ -86,6 +87,7 @@ fi
 cp "$manifest" "$private/release.json"
 printf '%s\n' \
   'Restore into a separate PostgreSQL 18 database fbe_staging initialized by a separate bootstrap administrator.' \
+  'Restore attachments from the same snapshot in a private volume and verify their hashes against PostgreSQL.' \
   'Apply roles.sql before pg_restore. Preserve owner, object ACLs and default privileges from the dump.' \
   'Connect the API and migrator to private PostgreSQL on port 5432. Use separate runtime and migration URLs.' \
   'For a drill, rebind database hosts and API/web origins to the internal Docker network.' \

@@ -110,7 +110,7 @@ Implementar almacenamiento privado, validación de archivos, descargas autorizad
 
 **Aceptación:** una URL copiada no da acceso a otra cuenta; los permisos se vuelven a comprobar al descargar. No existen carpetas clínicas públicas. Una solicitud de copia no exporta automáticamente datos de otros participantes. Se prueba el rechazo de tipos, tamaños y contenido no admitidos.
 
-**Salida del bloque:** expediente sintético completo, revisión supervisada y evidencia de accesos negativos. Las plantillas clínicas requieren revisión humana institucional.
+**Salida del bloque:** expediente sintético, revisión supervisada y evidencia de accesos negativos. El [documento del bloque 3](17_evidencia_bloque_3.md) enlaza el recorrido y distingue resultados locales, CI, staging y recuperación. Los textos, plantillas y atribuciones conservan su revisión institucional pendiente.
 
 ## Bloque 4 — Pagos, portal y videollamada
 
