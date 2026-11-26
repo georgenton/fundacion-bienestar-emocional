@@ -2,6 +2,8 @@
 set +x
 set -euo pipefail
 umask 077
+candidate=${1:-}
+[[ $# -le 1 ]] || { echo 'Usage: staging-recovery-drill.sh [absolute-block2-release.json]' >&2; exit 2; }
 cd "$(dirname "$0")/../.."
 
 # Local-only rehearsal. Never use an existing database, network or volume.
@@ -16,6 +18,22 @@ endpoint=$(docker context inspect desktop-linux --format '{{.Endpoints.docker.Ho
 export DOCKER_CONTEXT=desktop-linux
 before=docs/releases/0438bf99615d2ccc74e6c97034dafdf4ebea3760.json
 after=docs/releases/0de373ac92b8facf611fd8ce03fe7daae03db649.json
+block2=false
+if [[ -n "$candidate" ]]; then
+  [[ "$candidate" = /* && -f "$candidate" ]]
+  jq -e '
+    .platform == "linux/amd64" and
+    .source_repository == "georgenton/fundacion-bienestar-emocional" and
+    .verification.source_ci == "passed" and .verification.image_smoke == "passed" and
+    (.source_sha | test("^[a-f0-9]{40}$")) and
+    (.images | keys == ["api", "migrate", "web"]) and
+    (.images | to_entries | all(.key as $part |
+      .value | test("^ghcr[.]io/georgenton/fundacion-bienestar-emocional-" + $part + "@sha256:[a-f0-9]{64}$")))
+  ' "$candidate" >/dev/null
+  before=$after
+  after=$candidate
+  block2=true
+fi
 work=$(mktemp -d "${TMPDIR:-/tmp}/fbe-drill.XXXXXXXX")
 prefix="fbe-drill-${work##*.}"
 source_net="$prefix-source"
@@ -130,7 +148,7 @@ restore_date=$(date +%s)
 snapshot() {
   db "$1" <<'SQL'
 SELECT concat_ws('|',
-  (SELECT count(*) FROM public."_prisma_migrations" WHERE finished_at IS NOT NULL AND rolled_back_at IS NULL AND migration_name <> '202611240002_recovery_drill'),
+  (SELECT count(*) FROM public."_prisma_migrations" WHERE finished_at IS NOT NULL AND rolled_back_at IS NULL AND migration_name NOT IN ('202611240002_recovery_drill','202611260001_people_cases_agenda')),
   (SELECT count(*) FROM public."Person" WHERE synthetic),
   (SELECT count(*) FROM public."CareCase" WHERE synthetic),
   (SELECT count(*) FROM public."CaseParticipant"),
@@ -148,7 +166,7 @@ printf 'restore_sql_seconds=%s copy_age_at_restore_seconds=%s\n' \
 check_images() {
   local manifest=$1
   local label='ENTORNO LOCAL'
-  if [[ "$manifest" = "$after" ]]; then label='ENTORNO DE PRUEBAS'; fi
+  if [[ "$manifest" = "$after" || "$block2" = true ]]; then label='ENTORNO DE PRUEBAS'; fi
   docker run --rm --platform linux/amd64 --network "$restore_net" \
     --env-file "$work/restore/migration.env" "$(image "$manifest" migrate)"
   docker run -d --name "$api" --network "$restore_net" --network-alias api --platform linux/amd64 \
@@ -157,7 +175,9 @@ check_images() {
     -e HOSTNAME=0.0.0.0 -e PORT=3000 "$(image "$manifest" web)" >/dev/null
   docker cp "$work/fixtures/demo-credentials.json" "$api:/workspace/.local/drill-credentials.json"
   docker exec --user 0 "$api" chown node:node /workspace/.local/drill-credentials.json
-  docker exec -i "$api" node --input-type=module - "$label" <<'JS'
+  local block2_api=false
+  if [[ "$block2" = true && "$manifest" = "$after" ]]; then block2_api=true; fi
+  docker exec -i "$api" node --input-type=module - "$label" "$block2_api" <<'JS'
 import { readFileSync } from 'node:fs';
 import { setTimeout } from 'node:timers/promises';
 async function ready(url) {
@@ -182,6 +202,9 @@ requireCheck(html.includes('NO APTO PARA PACIENTES') && html.includes(process.ar
 const fixtures = JSON.parse(readFileSync('/workspace/.local/drill-credentials.json', 'utf8'));
 const anon = await fetch(base + '/api/cases');
 requireCheck(anon.status === 401, 'Anonymous denial');
+if (process.argv[3] === 'true') {
+  requireCheck((await fetch(base + '/api/people')).status === 401, 'Anonymous people denial');
+}
 const { email, password } = fixtures.actors.patient;
 const login = await fetch(base + '/api/auth/sign-in/email', {
   method: 'POST', headers: { origin, 'content-type': 'application/json' },
@@ -231,6 +254,58 @@ expect_denial 42501 'SET ROLE fbe_migrate;' assume_migration_role_denied
 expect_denial 42501 'TRUNCATE public."AuditEvent";' audit_truncate_denied
 expect_denial P0001 'BEGIN; UPDATE public."AuditEvent" SET action=action; ROLLBACK;' audit_update_denied
 expect_denial P0001 'BEGIN; DELETE FROM public."AuditEvent"; ROLLBACK;' audit_delete_denied
+
+if [[ "$block2" = true ]]; then
+  upgrade_started=$(date +%s)
+  check_images "$after"
+  docker run --rm --platform linux/amd64 --network "$restore_net" \
+    --env-file "$work/restore/migration.env" "$(image "$after" migrate)"
+  [[ "$(db "$dst" <<'SQL'
+SELECT count(*) FROM public."_prisma_migrations"
+WHERE migration_name='202611260001_people_cases_agenda' AND finished_at IS NOT NULL AND rolled_back_at IS NULL;
+SQL
+)" = 1 ]]
+  [[ "$baseline" = "$(snapshot "$dst")" ]]
+  [[ "$(runtime_query <<'SQL'
+BEGIN;
+INSERT INTO public."ServiceDefinition" ("name", "modalities", "durationMinutes", "marginMinutes", "updatedAt")
+VALUES ('Servicio sintético de ensayo', ARRAY['IN_PERSON']::public."AppointmentModality"[], 45, 10, now());
+UPDATE public."ServiceDefinition" SET "marginMinutes"=5;
+SELECT count(*) FROM public."ServiceDefinition" WHERE "marginMinutes"=5;
+SELECT bool_and(has_table_privilege(current_user, concat('public."', table_name, '"'), 'SELECT'))
+FROM unnest(ARRAY['Appointment','AgendaRequest','ServiceProfessional','ServiceTariff','ProfessionalHours','ProfessionalAbsence']) AS table_name;
+ROLLBACK;
+SQL
+)" = $'1\nt' ]]
+  expect_denial 42501 'DROP TABLE public."Appointment";' appointment_ddl_denied
+  expect_denial 42501 'DELETE FROM public."Appointment";' appointment_delete_denied
+  expect_denial 42501 'UPDATE public."ServiceTariff" SET "amountMinor"=1;' tariff_update_denied
+  printf 'upgrade_and_functional_check_seconds=%s\n' "$(( $(date +%s) - upgrade_started ))"
+
+  cp "$after" "$work/restore/release.json"
+  block2_backup="$work/fbe-block2.gpg"
+  GNUPGHOME="$work/producer" bash scripts/devops/staging-backup.sh \
+    "$dst" "$work/restore" "$fingerprint" "$block2_backup"
+  bytes=$(wc -c <"$block2_backup")
+  (( bytes <= 262144 ))
+  gpg --homedir "$work/custodian" --batch --decrypt "$block2_backup" 2>/dev/null |
+    tar -xOf - database.dump |
+    docker exec -i "$dst" pg_restore --list >"$work/block2-archive.list"
+  for table in ServiceDefinition ServiceProfessional ProfessionalHours ProfessionalAbsence ServiceTariff Appointment AgendaRequest; do
+    grep -q "TABLE DATA public $table " "$work/block2-archive.list"
+  done
+  printf 'new_tables_in_backup=7 block2_ciphertext_bytes=%s\n' "$bytes"
+
+  rollback_started=$(date +%s)
+  check_images "$before"
+  [[ "$baseline" = "$(snapshot "$dst")" ]]
+  [[ "$(db "$dst" <<'SQL'
+SELECT to_regclass('public."Appointment"') IS NOT NULL;
+SQL
+)" = t ]]
+  printf 'rollback_and_functional_check_seconds=%s schema_retained=block2\n' "$(( $(date +%s) - rollback_started ))"
+  exit 0
+fi
 
 # The additive SQL exists only under the drill directory, mounted in its migrator.
 mkdir "$work/migration"

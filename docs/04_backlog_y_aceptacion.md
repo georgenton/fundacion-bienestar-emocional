@@ -78,6 +78,10 @@ Conservar motivos, autor y relación con la reserva original. Mantener separados
 
 **Salida del bloque:** recorrido de recepción probado con concurrencia y excepciones. La autorreserva del paciente sigue controlada por servicio y modalidad.
 
+### Implementación verificable del bloque 2
+
+El recorrido sintético de FBE-005 a FBE-008 y sus pruebas quedan en la [evidencia del bloque 2](16_evidencia_bloque_2.md). El trabajo de recordatorios externos se conserva en FBE-015. La aplicación mantiene la referencia y versión de la cita para que ese módulo pueda detectar trabajos obsoletos. FBE-018 y FBE-019 conservan los criterios de sus bloques.
+
 ## Bloque 3 — Expediente, consentimiento y supervisión
 
 **Objetivo:** documentar la atención y su revisión conservando autoría, acceso por caso y versiones.

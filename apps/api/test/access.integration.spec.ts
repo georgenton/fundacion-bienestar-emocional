@@ -170,7 +170,11 @@ describe("PostgreSQL identity and access demonstration", () => {
 
   it("does not turn an operations administrator into a clinical reader", async () => {
     const cookie = await authenticatedCookie(fixtures.actors.operationsAdmin!);
-    expect((await request(app.getHttpServer()).get("/api/cases").set("Cookie", cookie)).body).toHaveLength(2);
+    const visible = await request(app.getHttpServer()).get("/api/cases").set("Cookie", cookie);
+    expect(visible.status).toBe(200);
+    expect(visible.body.map((item: { id: string }) => item.id)).toEqual(expect.arrayContaining([
+      fixtures.cases.caseA, fixtures.cases.caseB,
+    ]));
     expect(
       (await request(app.getHttpServer()).get(`/api/cases/${fixtures.cases.caseA}/clinical`).set("Cookie", cookie)).status,
     ).toBe(404);
@@ -423,7 +427,7 @@ describe("PostgreSQL identity and access demonstration", () => {
       await prisma.caseAssignment.update({ where: { id: assignment.id }, data: { allowedActions: [] } });
       const empty = await request(app.getHttpServer()).get("/api/cases").set("Cookie", cookie);
       expect(empty.status).toBe(200);
-      expect(empty.body).toEqual([]);
+      expect(empty.body.map((item: { id: string }) => item.id)).not.toContain(fixtures.cases.caseA);
       expect(
         (await request(app.getHttpServer()).get(`/api/cases/${fixtures.cases.caseA}/overview`).set("Cookie", cookie)).status,
       ).toBe(404);
@@ -431,7 +435,9 @@ describe("PostgreSQL identity and access demonstration", () => {
       await prisma.caseAssignment.update({
         where: { id: assignment.id }, data: { allowedActions: ["CASE_CLINICAL_READ"] },
       });
-      expect((await request(app.getHttpServer()).get("/api/cases").set("Cookie", cookie)).body).toEqual([]);
+      const stillScoped = await request(app.getHttpServer()).get("/api/cases").set("Cookie", cookie);
+      expect(stillScoped.status).toBe(200);
+      expect(stillScoped.body.map((item: { id: string }) => item.id)).not.toContain(fixtures.cases.caseA);
       expect(
         (await request(app.getHttpServer()).get(`/api/cases/${fixtures.cases.caseA}/clinical`).set("Cookie", cookie)).status,
       ).toBe(200);

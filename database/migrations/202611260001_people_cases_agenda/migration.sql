@@ -12,8 +12,8 @@ CREATE TYPE "AttendanceStatus" AS ENUM ('UNRECORDED', 'ATTENDED', 'NO_SHOW');
 -- CreateEnum
 CREATE TYPE "CancellationParty" AS ENUM ('PATIENT', 'PROFESSIONAL', 'ADMINISTRATIVE');
 
--- DropIndex
-DROP INDEX "Person_contactEmail_key";
+-- Drop the constraint that owns the unique index in the deployed schema.
+ALTER TABLE "Person" DROP CONSTRAINT "Person_contactEmail_key";
 
 -- AlterTable
 ALTER TABLE "Person" ADD COLUMN     "archivedAt" TIMESTAMP(3);
