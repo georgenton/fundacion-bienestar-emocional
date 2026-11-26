@@ -163,7 +163,7 @@ describe("Consentimientos y expediente en PostgreSQL", () => {
 });
 
 describe("Prácticas y documentos privados", () => {
-  it("conserva las revisiones durante el cambio de supervisor y retira acceso clínico al suspender o vencer", async () => {
+  it("conserva revisiones y pendientes al cambiar supervisor, suspender y vencer la práctica", async () => {
     const practice = status(await post("practices", "clinicalCoordinator", {
       internId: fixtures.intern!.accountId, supervisorId: fixtures.clinicalSupervisor!.accountId,
       institution: "Institución enteramente ficticia", institutionalRef: "REF-SIMULACION",
@@ -207,21 +207,127 @@ describe("Prácticas y documentos privados", () => {
     expect(approved).toMatchObject({ authorId: fixtures.intern!.accountId, validatorId: fixtures.supervisorB!.accountId });
     status(await post(`practices/${practiceId}/hours/${workload.id}`, "supervisorB", { status: "APPROVED" }), 201);
     expect(status(await get(`practices/${practiceId}/export`, "supervisorB"), 200)).toEqual([{ day, kind: "TRAINING", minutes: 95 }]);
+    const draftText = "Borrador privado que conserva su autoría tras vencer la práctica.";
+    const returnedText = "Aporte privado devuelto, todavía sin nueva revisión.";
+    const draft = status(await post(casePath(`encounters/${encounterId}/notes`), "intern", { narrative: draftText }), 201);
+    const returned = status(await post(casePath(`encounters/${encounterId}/notes`), "intern", { narrative: returnedText }), 201);
+    status(await post(casePath(`notes/${returned.id}`), "intern", { operation: "SUBMIT", version: 1 }), 201);
+    status(await post(casePath(`notes/${returned.id}`), "supervisorB", {
+      operation: "RETURN", version: 2, remarks: "Aporte sintético pendiente de revisión posterior.",
+    }), 201);
+    const responsible = await prisma.userAccount.findUniqueOrThrow({
+      where: { id: fixtures.supervisorB!.accountId }, include: { person: true },
+    });
+    const pendingNotes = [
+      { id: draft.id, status: "DRAFT", authorFunction: "INTERN", responsibleName: responsible.person.displayName },
+      { id: returned.id, status: "RETURNED", authorFunction: "INTERN", responsibleName: responsible.person.displayName },
+    ];
+    const own = status(await get(casePath(), "intern"), 200).encounters.find((item: { id: string }) => item.id === encounterId);
+    expect(own.documentation).toEqual({ total: 3, validated: 1, pending: 2 });
+    expect(own.pendingNotes).toEqual(pendingNotes);
+    const priorSupervisor = status(await get(casePath(), "clinicalSupervisor"), 200).encounters
+      .find((item: { id: string }) => item.id === encounterId);
+    expect(priorSupervisor.documentation).toEqual({ total: 0, validated: 0, pending: 0 });
+    expect(priorSupervisor.pendingNotes).toEqual([]);
+
     status(await post(`practices/${practiceId}`, "clinicalCoordinator", { ...change, state: "SUSPENDED",
       supervisorId: fixtures.supervisorB!.accountId, version: 3,
     }), 201);
     status(await get(casePath(), "intern"), 404);
+    status(await post(casePath(`notes/${draft.id}`), "intern", { operation: "SUBMIT", version: 1 }), 404);
+    const supervised = status(await get(casePath(), "supervisorB"), 200).encounters
+      .find((item: { id: string }) => item.id === encounterId);
+    expect(supervised.documentation).toEqual({ total: 3, validated: 1, pending: 2 });
+    expect(supervised.pendingNotes).toEqual(pendingNotes);
+    expect(supervised.notes.some((item: { id: string }) => item.id === draft.id || item.id === returned.id)).toBe(false);
+    expect(JSON.stringify(supervised)).not.toContain(draftText);
+    expect(JSON.stringify(supervised)).not.toContain(returnedText);
     status(await post(`practices/${practiceId}`, "clinicalCoordinator", { ...change,
       supervisorId: fixtures.supervisorB!.accountId, version: 4,
     }), 201);
     await prisma.practice.update({ where: { id: practiceId }, data: { endsAt: now(-1_000) } });
     status(await get(casePath(), "intern"), 404);
-    status(await post(casePath(`encounters/${encounterId}/complete`), "professional", {}), 201);
+    status(await post(casePath(`notes/${returned.id}`), "intern", { operation: "SUBMIT", version: 3 }), 404);
+    for (const actor of ["reception", "clinicalPatient", "professionalB", "supervisorB", "intern"]) {
+      status(await post(casePath(`encounters/${encounterId}/complete`), actor, {}), 404);
+    }
+    const completed = status(await post(casePath(`encounters/${encounterId}/complete`), "professional", {}), 201);
+    expect(completed.status).toBe("COMPLETED");
+    const treated = status(await get(casePath(), "professional"), 200).encounters
+      .find((item: { id: string }) => item.id === encounterId);
+    expect(treated.documentation).toEqual({ total: 4, validated: 2, pending: 2 });
+    expect(treated.pendingNotes).toEqual(pendingNotes);
+    expect(treated.notes.some((item: { id: string }) => item.id === draft.id || item.id === returned.id)).toBe(false);
+    expect(JSON.stringify(treated)).not.toContain(draftText);
+    expect(JSON.stringify(treated)).not.toContain(returnedText);
+    const retained = await prisma.clinicalNote.findMany({
+      where: { id: { in: [draft.id, returned.id] } },
+      select: { id: true, status: true, authorId: true, practiceId: true, version: true, narrative: true, validatorId: true },
+    });
+    expect(retained).toEqual(expect.arrayContaining([
+      { id: draft.id, status: "DRAFT", authorId: fixtures.intern!.accountId, practiceId, version: 1,
+        narrative: draftText, validatorId: null },
+      { id: returned.id, status: "RETURNED", authorId: fixtures.intern!.accountId, practiceId, version: 3,
+        narrative: returnedText, validatorId: null },
+    ]));
+  });
+
+  it("permite documentación tardía y cierre sin notas sin alterar atención ni asistencia", async () => {
+    const completed = await prisma.encounter.findUniqueOrThrow({ where: { id: encounterId } });
+    const appointment = await prisma.appointment.findUniqueOrThrow({ where: { id: appointmentId } });
+    expect(completed.status).toBe("COMPLETED");
+    for (const actor of ["reception", "clinicalPatient", "professionalB", "intern"]) {
+      status(await post(casePath(`encounters/${encounterId}/notes`), actor, { narrative: "Intento sintético no autorizado." }), 404);
+    }
+    const late = status(await post(casePath(`encounters/${encounterId}/notes`), "professional", {
+      narrative: "Documentación sintética registrada después de concluir la atención.",
+    }), 201);
+    expect(late).toMatchObject({ status: "DRAFT", authorId: fixtures.professional!.accountId,
+      authorFunction: "TREATING_PROFESSIONAL", occurredAt: completed.occurredAt.toISOString(), validatorId: null });
+    expect(new Date(late.recordedAt).getTime()).toBeGreaterThanOrEqual(completed.completedAt!.getTime());
+    expect(await prisma.encounter.findUniqueOrThrow({ where: { id: encounterId } })).toEqual(completed);
+    expect((await prisma.appointment.findUniqueOrThrow({ where: { id: appointmentId } })).attendance).toBe(appointment.attendance);
+    expect(status(await post(casePath(`encounters/${encounterId}/complete`), "professional", {}), 201).completedAt)
+      .toBe(completed.completedAt!.toISOString());
+    await prisma.careCase.update({ where: { id: caseId }, data: { status: "CLOSED", closedAt: now() } });
+    try {
+      status(await post(casePath(`encounters/${encounterId}/notes`), "professional", { narrative: "Caso cerrado de prueba." }), 404);
+    } finally {
+      await prisma.careCase.update({ where: { id: caseId }, data: { status: "OPEN", closedAt: null } });
+    }
+
+    const startsAt = now(-120 * hours);
+    const endsAt = new Date(startsAt.getTime() + appointment.durationMinutes * 60_000);
+    const emptyBooking = await prisma.appointment.create({ data: {
+      caseId, professionalId: appointment.professionalId, serviceId: appointment.serviceId,
+      serviceName: appointment.serviceName, tariffId: appointment.tariffId, createdByAccountId: appointment.createdByAccountId,
+      durationMinutes: appointment.durationMinutes, marginMinutes: appointment.marginMinutes,
+      currency: appointment.currency, amountMinor: appointment.amountMinor, modality: appointment.modality,
+      startsAt, endsAt, occupiedUntil: new Date(endsAt.getTime() + appointment.marginMinutes * 60_000),
+      status: "CONFIRMED", attendance: "UNRECORDED",
+    } });
+    const empty = status(await post(casePath("encounters"), "professional", { appointmentId: emptyBooking.id }), 201);
+    expect(status(await post(casePath(`encounters/${empty.id}/complete`), "professional", {}), 201).status).toBe("COMPLETED");
+    expect(await prisma.clinicalNote.count({ where: { encounterId: empty.id } })).toBe(0);
+    expect((await prisma.appointment.findUniqueOrThrow({ where: { id: emptyBooking.id } })).attendance).toBe("UNRECORDED");
+    const emptyRecord = status(await get(casePath(), "professional"), 200).encounters
+      .find((item: { id: string }) => item.id === empty.id);
+    expect(emptyRecord.documentation).toEqual({ total: 0, validated: 0, pending: 0 });
+    expect(emptyRecord.pendingNotes).toEqual([]);
   });
 
   it("publica versiones concretas, autoriza cada descarga y no registra una subida que falla", async () => {
     status(await post(casePath("files"), "professional", { ...upload, name: "activo.html" }), 400);
     status(await post(casePath("files"), "professional", { ...upload, data: Buffer.from("<script>hola</script>").toString("base64") }), 400);
+    const atLimit = status(await post(casePath("files"), "professional", {
+      ...upload, data: Buffer.alloc(16_384, "a").toString("base64"),
+    }), 201);
+    expect(atLimit.bytes).toBe(16_384);
+    const beforeOversize = await prisma.privateAttachment.count({ where: { caseId } });
+    status(await post(casePath("files"), "professional", {
+      ...upload, data: Buffer.alloc(16_385, "a").toString("base64"),
+    }), 400);
+    expect(await prisma.privateAttachment.count({ where: { caseId } })).toBe(beforeOversize);
     const evidence = status(await post(casePath("files"), "professional", { ...upload, consentId }), 201);
     status(await get(`files/${evidence.id}`, "clinicalPatient"), 404);
     status(await post(casePath(`files/${evidence.id}/share`), "professional", { reviewed: true }), 404);
@@ -264,6 +370,7 @@ describe("Prácticas y documentos privados", () => {
     status(await post(casePath(`grants/${treatmentGrant}/revoke`), "clinicalCoordinator", {}), 201);
     status(await get(`files/${item.id}`, "professional"), 404);
     status(await get(casePath(), "professional"), 404);
+    status(await post(casePath(`encounters/${encounterId}/notes`), "professional", { narrative: "Permiso revocado de prueba." }), 404);
     expect(await prisma.clinicalNote.findUnique({ where: { id: noteId } })).not.toBeNull();
   });
 });

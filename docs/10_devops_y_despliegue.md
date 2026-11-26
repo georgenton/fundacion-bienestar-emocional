@@ -6,7 +6,7 @@
 
 | Flujo | Disparador | Resultado | Permisos especiales |
 |---|---|---|---|
-| `CI / verify-block-1` | PR, push a `main` o ejecución manual | Instalación con lockfile, PostgreSQL autenticado, migraciones, generación Prisma y build de paquetes, lint, pruebas, demostración sintética, build y pruebas del control de promoción | Ninguno: `contents: read` |
+| `CI / verify-block-1` | PR, push a `main` o ejecución manual | Instalación con lockfile, PostgreSQL autenticado, migraciones, generación Prisma y build de paquetes, lint, pruebas, demostración sintética, build, recorridos Chromium de bloques 2 y 3 y pruebas del control de promoción | Ninguno: `contents: read` |
 | `CI / docker-verify` | Los mismos eventos | Construye API, migrador y web; arranca las imágenes con PostgreSQL efímero y comprueba disponibilidad y rechazo anónimo | Ningún login al registro; `push: false` |
 | `CI / publish-images` | Push a `main`, verificaciones anteriores aprobadas y publicación habilitada | Publica las tres imágenes en GHCR, vuelve a probarlas por digest y guarda un manifiesto | `packages: write` únicamente en este job |
 | `Prepare staging handoff` | Manual, desde `main`, indicando un ID de ejecución de CI | Valida la procedencia del manifiesto y produce referencias por digest para revisión | `actions: read`; environment `staging` |
@@ -14,6 +14,8 @@
 El último flujo **no llama a Coolify**. Su resumen y artefacto identifican el estado `handoff_only_not_deployed`. GitHub puede asociar el job con su environment; ese registro tampoco prueba que los contenedores estén desplegados.
 
 Las pruebas de contenedores verifican arranque, ejecución previa del migrador, respuesta de PostgreSQL, página sintética y HTTP 401 para casos sin autenticación. No sustituyen las pruebas de navegador, MFA, cookies, TLS, permisos clínicos o recuperación. Las pruebas de autorización e identidad existentes se ejecutan en el job de código; el nuevo migrador incluye todas las migraciones versionadas, sin fijar un número de archivos.
+
+El job de código instala el Chromium correspondiente al Playwright fijado y ejecuta `scripts/verify-browser-ci.mjs` después del build. El conductor exige el entorno CI sintético descartable y destinos localhost, renueva sus fixtures y arranca API compilada y Next standalone. Los procesos del ensayo usan `APP_ENV=development` para el buzón privado de activación, con `NODE_ENV=production`; no cambian la configuración de staging. Los registros se capturan en archivos privados, se examinan y no se suben como artefactos. La evidencia distingue estos recorridos de escritorio y viewport móvil de una prueba en dispositivo real o sobre HTTPS de staging.
 
 ## 2. Configurar el repositorio público
 

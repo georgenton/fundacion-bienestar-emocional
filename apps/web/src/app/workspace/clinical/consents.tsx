@@ -24,10 +24,14 @@ export function Consents({ path, request, patient }: { path: string; request: Re
         <h4>{purposes[template.purpose]} · Versión {template.version}</h4>
         <p>{template.body}</p>
         {latest?.withdrawnAt && <p role="status" className="message">Retirado. Revisión del proceso pendiente.</p>}
-        {latest?.template.id === template.id && !latest.withdrawnAt ? <button type="button" className="secondary"
-          disabled={action.busy} onClick={() => void action.run(() => request(`${endpoint}/${latest.id}/withdraw`, {}))}>
-          {patient ? "Retirar aceptación" : "Registrar retirada"}
-        </button> : <form onSubmit={onForm(form => void action.run(() => request(endpoint, {
+        {latest && !latest.withdrawnAt && <>
+          <p>Aceptación vigente: versión {latest.template.version}.</p>
+          <button type="button" className="secondary"
+            disabled={action.busy} onClick={() => void action.run(() => request(`${endpoint}/${latest.id}/withdraw`, {}))}>
+            {patient ? "Retirar aceptación" : "Registrar retirada"}
+          </button>
+        </>}
+        {(!latest || latest.withdrawnAt || latest.template.id !== template.id) && <form onSubmit={onForm(form => void action.run(() => request(endpoint, {
           templateId: template.id, medium: patient ? "PATIENT_PORTAL" : "STAFF_WITNESSED", confirmed: form.has("confirm"),
         })))}>
           <label className="check"><input type="checkbox" name="confirm" required />{patient
