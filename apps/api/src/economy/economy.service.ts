@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
-import { Injectable } from "@nestjs/common";
+import { ForbiddenException, Injectable, NotFoundException } from "@nestjs/common";
 import { activeAccount, capabilities, portalPatient, type ActorContext } from "@fbe/access-policy";
 import { prisma, type Prisma } from "@fbe/database";
 import { AccessPolicyService } from "../access/access-policy.service.js";
@@ -26,6 +26,28 @@ const amount = (input: Input) => {
 const amountId = (input: Input, field: string) => ({ value: amount(input), id: uuid(input[field]) });
 const reason = (input: Input) => text(input.reason, 3, 160);
 
+function financeAccessEvent(db: Prisma.TransactionClient, actor: ActorContext, action: string,
+  resourceType: string, resourceId: string | null, decision: "ALLOWED" | "DENIED") {
+  return db.auditEvent.create({ data: {
+    actorAccountId: actor.accountId, action, resourceType, resourceId, decision,
+    reasonCode: decision === "ALLOWED" ? "AUTHORIZED_WORKFLOW" : "NO_APPLICABLE_SCOPE",
+  } });
+}
+
+async function auditedFinance<T>(actor: ActorContext, action: string, resourceType: string,
+  resourceId: string | null, work: () => Promise<T>): Promise<T> {
+  try {
+    return await work();
+  } catch (error) {
+    if (error instanceof ForbiddenException || error instanceof NotFoundException) {
+      // A denial survives the rolled-back business transaction. Never copy its
+      // request, financial amounts, references or response into the audit event.
+      await financeAccessEvent(prisma, actor, action, resourceType, resourceId, "DENIED");
+    }
+    throw error;
+  }
+}
+
 @Injectable()
 export class EconomyService {
   constructor(private readonly policy: AccessPolicyService) {}
@@ -38,7 +60,7 @@ export class EconomyService {
   }
 
   async overview(actor: ActorContext) {
-    return agendaTransaction(async (db, now) => {
+    return auditedFinance(actor, "FINANCE_OVERVIEW", "FinancialOverview", null, () => agendaTransaction(async (db, now) => {
       const staff = actor.capabilities.includes(register);
       const patient = actor.roleCodes.includes("PATIENT");
       const professional = actor.roleCodes.includes("PROFESSIONAL");
@@ -78,6 +100,7 @@ export class EconomyService {
           stage: true, createdAt: true, lines: { select: { grossMinor: true, netMinor: true, refundId: true } } },
         orderBy: { createdAt: "desc" }, take: 100,
       }) : [];
+      await financeAccessEvent(db, actor, "FINANCE_OVERVIEW", "FinancialOverview", null, "ALLOWED");
       return { obligations: rows, receipts, settlements,
         awards: staff ? await db.solidarityAward.findMany({ take: 100, orderBy: { createdAt: "desc" } }) : [],
         refunds: staff ? await db.paymentRefund.findMany({ take: 100, orderBy: { createdAt: "desc" } }) : [],
@@ -86,7 +109,7 @@ export class EconomyService {
         professionals: staff ? await db.userAccount.findMany({ where: activeAccount("PROFESSIONAL", now),
           select: { id: true, person: { select: { displayName: true } } }, take: 100 }) : [],
       };
-    });
+    }));
   }
 
   command(actor: ActorContext, value: unknown) {
@@ -95,7 +118,7 @@ export class EconomyService {
     const key = uuid(input.requestId);
     const patientDeclaration = action === "DECLARE" && !actor.capabilities.includes(register);
     const fingerprint = createHash("sha256").update(JSON.stringify(Object.keys(input).sort().map(field => [field, input[field]]))).digest("hex");
-    return agendaTransaction(async (db, now) => {
+    return auditedFinance(actor, `FINANCE_${action}`, "FinanceCommand", key, () => agendaTransaction(async (db, now) => {
       if (patientDeclaration) {
         if (input.kind !== "PAYMENT" || input.payerId !== undefined ||
             !await portalPatient(db, actor, await this.caseFor(db, uuid(input.obligationId)), now)) unavailable();
@@ -111,7 +134,7 @@ export class EconomyService {
       await db.financeCommand.create({ data: { actorId: actor.accountId, key, fingerprint, outcome } });
       await audit(db, actor, `FINANCE_${action}`, "FinancialMovement", outcome);
       return { id: outcome };
-    });
+    }));
   }
 
   private async applyCommand(db: Prisma.TransactionClient, { accountId, personId }: ActorContext, now: Date,

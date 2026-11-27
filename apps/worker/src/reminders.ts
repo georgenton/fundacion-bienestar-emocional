@@ -21,6 +21,14 @@ export async function enqueueReminder(db: Prisma.TransactionClient, now: Date,
     where: { ...recipientScope(appointment.caseId, now), ...(accountId ? { id: accountId } : {}) }, select: { id: true },
   });
   if (!accounts.length) return;
+  // An eligible recipient can opt back in after a skipped attempt. Preserve
+  // its prior attempt time until the next attempt; a delivered job stays final.
+  await db.reminderJob.updateMany({
+    where: { appointmentId: appointment.id, appointmentVersion: appointment.version,
+      startsAt: appointment.startsAt, accountId: { in: accounts.map(({ id }) => id) },
+      state: "SKIPPED", delivery: { is: null } },
+    data: { state: "READY" },
+  });
   await db.reminderJob.createMany({
     data: accounts.map(({ id }) => ({
       appointmentId: appointment.id, accountId: id, appointmentVersion: appointment.version,
