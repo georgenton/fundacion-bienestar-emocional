@@ -64,6 +64,14 @@ pnpm db:migrate
 pnpm demo:verify
 ```
 
+## Pagos, portal y videoconsultas sintéticos
+
+Recepción registra obligaciones a partir de citas confirmadas. En **Economía**, el paciente puede declarar un pago y adjuntar/consultar su comprobante de prueba. Los perfiles de finanzas y profesional consultan los movimientos que les corresponden. El formato de comprobante es `.txt` UTF-8 de hasta 16 KiB. No se procesa dinero real.
+
+En **Recordatorios** el paciente habilita la bandeja privada de ensayo. Para probar un despacho local sobre la base sintética, cargue la configuración local y ejecute `node --env-file=.env apps/worker/dist/dispatch.js` después de `pnpm packages:build`. Use `ALLOW_SYNTHETIC_SEED=false` durante el despacho. En citas online, **Videoconsulta** muestra el acceso con permisos vigentes y las tareas de cierre externo cuando corresponda.
+
+La regla económica, el procedimiento de video y los límites institucionales están en el [ADR 0005](docs/adr/0005_economia_portal_y_video_sinteticos.md). Consulte los recorridos y el estado observado en la [evidencia del bloque 4](docs/19_evidencia_bloque_4.md).
+
 ## Verificación
 
 ```bash
@@ -77,7 +85,7 @@ node --test scripts/devops/release-validation.test.mjs
 
 `demo:verify` vuelve a crear fixtures sintéticos, ejecuta el recorrido integral sobre PostgreSQL y examina el registro capturado contra los secretos generados, cabeceras de sesión y marcadores de contenido clínico. Cubre acceso permitido/denegado, cambio de identificador, listados, exportación, revocación con sesión abierta, desactivación de cuenta, invitación de un solo uso, recuperación expirada/no reutilizable y código de respaldo MFA de un solo uso.
 
-El CI reproduce migraciones, pruebas, escaneo, build y recorridos Chromium de los bloques 2 y 3 en `.github/workflows/ci.yml`, y construye y arranca las imágenes en un job separado. La publicación GHCR requiere configuración explícita. El flujo manual de staging prepara referencias de imágenes verificadas y no llama a Coolify por sí mismo. La primera promoción manual real y sus comprobaciones están en [docs/13_evidencia_staging_2026-11-24.md](docs/13_evidencia_staging_2026-11-24.md). Aprobar CI o desplegar este entorno sintético no equivale a habilitar atención.
+El CI reproduce migraciones, pruebas, escaneo, build y recorridos Chromium de los bloques 2, 3 y 4 en `.github/workflows/ci.yml`, y construye y arranca las imágenes en un job separado. La publicación GHCR requiere configuración explícita. El flujo manual de staging prepara referencias de imágenes verificadas y no llama a Coolify por sí mismo. La primera promoción manual real y sus comprobaciones están en [docs/13_evidencia_staging_2026-11-24.md](docs/13_evidencia_staging_2026-11-24.md). Aprobar CI o desplegar este entorno sintético no equivale a habilitar atención.
 
 ## Límites de acceso demostrados
 

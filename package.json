@@ -25,6 +25,7 @@
     "demo:verify": "tsx scripts/verify-demo.ts",
     "demo:block2:browser": "node scripts/verify-block2-browser.mjs",
     "demo:block3:browser": "node scripts/verify-block3-browser.mjs",
+    "demo:block4:browser": "node scripts/verify-block4-browser.mjs",
     "logs:scan": "tsx scripts/scan-sensitive-output.ts",
     "check": "pnpm lint && pnpm test && pnpm build && pnpm logs:scan"
   },

@@ -76,6 +76,17 @@ const errors: Record<string, string> = {
   PRIVATE_STORAGE_UNAVAILABLE: "El almacenamiento privado no está disponible. Intente nuevamente.",
   DOCUMENT_REVIEW_REQUIRED: "Revise el documento antes de compartirlo.",
   INFORMATION_STATE_INVALID: "Complete el paso previo de identidad y revisión.",
+  CURRENCY_INVALID: "La simulación admite USD en centavos.",
+  SYNTHETIC_REFERENCE_REQUIRED: "Use una referencia ficticia con prefijo SYN-.",
+  PAYMENT_REFERENCE_EXISTS: "La referencia ya existe.",
+  FINANCIAL_STATE_CHANGED: "Revise el estado actual de este movimiento.",
+  FINANCIAL_BALANCE_EXCEEDED: "El importe supera el saldo disponible.",
+  VERIFIED_PAYMENT_REQUIRED: "Verifique un pago antes de utilizar su saldo.",
+  SETTLEMENT_EMPTY: "No hay movimientos elegibles pendientes para este profesional.",
+  VIDEO_HOST_CHECK_REQUIRED: "Confirme los controles del proveedor antes de continuar.",
+  VIDEO_ALREADY_REGISTERED: "La cita ya tiene un enlace registrado.",
+  VIDEO_LINK_ALREADY_USED: "Use un enlace independiente para esta cita.",
+  PARTICIPANT_LINK_INVALID: "Introduzca un enlace de participante de Google Meet.",
   ACTIVATION_INVALID: "El enlace no es válido, ya se utilizó o perdió vigencia.",
 };
 

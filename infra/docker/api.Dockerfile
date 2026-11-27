@@ -37,6 +37,8 @@ COPY --from=build /workspace/node_modules ./node_modules
 COPY --from=build /workspace/apps/api/node_modules ./apps/api/node_modules
 COPY --from=build /workspace/packages ./packages
 COPY --from=build /workspace/apps/api/dist ./apps/api/dist
+COPY --from=build /workspace/apps/worker/package.json ./apps/worker/package.json
+COPY --from=build /workspace/apps/worker/dist ./apps/worker/dist
 RUN install -d -o node -g node -m 0700 /workspace/.local /workspace/.local/private-attachments
 USER node
 EXPOSE 3001

@@ -1,3 +1,4 @@
+import { enqueueReminder } from "@fbe/worker";
 import { createHash } from "node:crypto";
 import { ConflictException, Injectable, NotFoundException } from "@nestjs/common";
 import { activeRole, appointmentScope, capabilities, caseActions, type ActorContext } from "@fbe/access-policy";
@@ -214,6 +215,9 @@ export class AppointmentsService {
           return previous.result;
         }
         const result = await write(db, now);
+        if (action === "APPOINTMENT_CONFIRM" || action === "APPOINTMENT_RESCHEDULE") {
+          await enqueueReminder(db, now, result);
+        }
         const response = JSON.parse(JSON.stringify(result)) as Prisma.InputJsonObject;
         await db.agendaRequest.create({ data: { actorId: actor.accountId, key, fingerprint, result: response } });
         const originalId = result.previousId && action === "APPOINTMENT_RESCHEDULE" ? result.previousId : null;

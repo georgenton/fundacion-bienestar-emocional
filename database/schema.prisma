@@ -133,6 +133,8 @@ model Person {
   informationRequests InformationRequest[]
   documentShares      AttachmentShare[]
 
+  paymentReceipts MoneyReceipt[]
+
   @@index([contactEmail])
 }
 
@@ -172,6 +174,11 @@ model UserAccount {
   files                     PrivateAttachment[]
   fileShares                AttachmentShare[]
   handledRequests           InformationRequest[] @relation("RequestHandler")
+
+  reminderPreference ReminderPreference?
+  reminderJobs ReminderJob[]
+  financeCommands FinanceCommand[]
+  settlements Settlement[]
 
   @@index([status])
 }
@@ -424,6 +431,10 @@ model Appointment {
 
   encounter Encounter?
 
+  obligation Obligation?
+  reminderJobs ReminderJob[]
+  meeting VideoMeeting?
+
   @@index([professionalId, startsAt])
   @@index([caseId, startsAt])
 }
@@ -646,6 +657,7 @@ enum AttachmentClass {
   CASE_DOCUMENT
   CONSENT_EVIDENCE
   PRACTICE_DOCUMENT
+  PAYMENT_EVIDENCE
 }
 
 enum AttachmentState {
@@ -675,6 +687,9 @@ model PrivateAttachment {
   previous    PrivateAttachment? @relation("AttachmentRevision", fields: [previousId], references: [id], onDelete: Restrict)
   replacement PrivateAttachment? @relation("AttachmentRevision")
   share       AttachmentShare?
+
+  receiptId String? @db.Uuid
+  receipt MoneyReceipt? @relation(fields: [receiptId], references: [id], onDelete: Restrict)
 
   @@index([caseId, kind])
   @@index([practiceId])
@@ -717,4 +732,192 @@ model InformationRequest {
   delivery           AttachmentShare? @relation(fields: [attachmentId], references: [attachmentId], onDelete: Restrict)
 
   @@index([caseId, initiatedAt])
+}
+
+enum ReceiptKind {
+  PAYMENT
+  DONATION
+}
+
+enum FinancialStage {
+  PREPARED
+  APPROVED
+  SIMULATED
+  REJECTED
+}
+
+enum SolidarityKind {
+  SCHOLARSHIP
+  DISCOUNT
+  WAIVER
+}
+
+model Obligation {
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  appointmentId String @unique @db.Uuid
+  amountMinor Int
+  currency String @db.VarChar(3)
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  appointment Appointment @relation(fields: [appointmentId], references: [id], onDelete: Restrict)
+  receipts MoneyReceipt[]
+  applications PaymentApplication[]
+  solidarity SolidarityAward[]
+}
+
+model MoneyReceipt {
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  obligationId String? @db.Uuid
+  payerId String @db.Uuid
+  declaredById String @db.Uuid
+  verifiedById String? @db.Uuid
+  kind ReceiptKind
+  amountMinor Int
+  currency String @db.VarChar(3)
+  reference String @unique
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  verifiedAt DateTime? @db.Timestamptz(3)
+  obligation Obligation? @relation(fields: [obligationId], references: [id], onDelete: Restrict)
+  payer Person @relation(fields: [payerId], references: [id], onDelete: Restrict)
+  applications PaymentApplication[]
+  refunds PaymentRefund[]
+  attachments PrivateAttachment[]
+  @@index([payerId])
+}
+
+model PaymentApplication {
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  receiptId String @db.Uuid
+  obligationId String @db.Uuid
+  actorId String @db.Uuid
+  amountMinor Int
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  receipt MoneyReceipt @relation(fields: [receiptId], references: [id], onDelete: Restrict)
+  obligation Obligation @relation(fields: [obligationId], references: [id], onDelete: Restrict)
+  refunds PaymentRefund[]
+  settlementLine SettlementLine?
+  @@index([receiptId])
+  @@index([obligationId])
+}
+
+model SolidarityAward {
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  obligationId String @db.Uuid
+  proposedById String @db.Uuid
+  approvedById String? @db.Uuid
+  amountMinor Int
+  kind SolidarityKind
+  reason String
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  approvedAt DateTime? @db.Timestamptz(3)
+  obligation Obligation @relation(fields: [obligationId], references: [id], onDelete: Restrict)
+  @@index([obligationId])
+}
+
+model PaymentRefund {
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  receiptId String @db.Uuid
+  applicationId String? @db.Uuid
+  preparedById String @db.Uuid
+  decidedById String? @db.Uuid
+  executedById String? @db.Uuid
+  amountMinor Int
+  reason String
+  stage FinancialStage @default(PREPARED)
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  decidedAt DateTime? @db.Timestamptz(3)
+  executedAt DateTime? @db.Timestamptz(3)
+  receipt MoneyReceipt @relation(fields: [receiptId], references: [id], onDelete: Restrict)
+  application PaymentApplication? @relation(fields: [applicationId], references: [id], onDelete: Restrict)
+  settlementLine SettlementLine?
+  @@index([receiptId, applicationId])
+}
+
+model Settlement {
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  professionalId String @db.Uuid
+  preparedById String @db.Uuid
+  decidedById String? @db.Uuid
+  executedById String? @db.Uuid
+  ruleVersion String
+  basisPoints Int
+  netMinor Int
+  currency String @db.VarChar(3)
+  stage FinancialStage @default(PREPARED)
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  decidedAt DateTime? @db.Timestamptz(3)
+  executedAt DateTime? @db.Timestamptz(3)
+  professional UserAccount @relation(fields: [professionalId], references: [id], onDelete: Restrict)
+  lines SettlementLine[]
+  @@index([professionalId])
+}
+
+model SettlementLine {
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  settlementId String @db.Uuid
+  applicationId String? @unique @db.Uuid
+  refundId String? @unique @db.Uuid
+  grossMinor Int
+  netMinor Int
+  settlement Settlement @relation(fields: [settlementId], references: [id], onDelete: Restrict)
+  application PaymentApplication? @relation(fields: [applicationId], references: [id], onDelete: Restrict)
+  refund PaymentRefund? @relation(fields: [refundId], references: [id], onDelete: Restrict)
+}
+
+model FinanceCommand {
+  actorId String @db.Uuid
+  key String
+  fingerprint String
+  outcome String @db.Uuid
+  actor UserAccount @relation(fields: [actorId], references: [id], onDelete: Restrict)
+  @@id([actorId,key])
+}
+
+enum ReminderState {
+  READY
+  SKIPPED
+  DELIVERED
+}
+
+model ReminderPreference {
+  accountId String @id @db.Uuid
+  enabled Boolean
+  updatedAt DateTime @db.Timestamptz(3)
+  account UserAccount @relation(fields: [accountId], references: [id], onDelete: Restrict)
+}
+
+model ReminderJob {
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  appointmentId String @db.Uuid
+  accountId String @db.Uuid
+  appointmentVersion Int
+  startsAt DateTime @db.Timestamptz(3)
+  scheduledAt DateTime @db.Timestamptz(3)
+  attemptedAt DateTime? @db.Timestamptz(3)
+  state ReminderState @default(READY)
+  appointment Appointment @relation(fields: [appointmentId], references: [id], onDelete: Restrict)
+  account UserAccount @relation(fields: [accountId], references: [id], onDelete: Restrict)
+  delivery ReminderDelivery?
+  @@unique([appointmentId, accountId, appointmentVersion])
+  @@index([state, scheduledAt])
+  @@index([accountId])
+}
+
+model ReminderDelivery {
+  jobId String @id @db.Uuid
+  deliveredAt DateTime @db.Timestamptz(3)
+  message String
+  job ReminderJob @relation(fields: [jobId], references: [id], onDelete: Restrict)
+}
+
+model VideoMeeting {
+  appointmentId String @id @db.Uuid
+  appointmentVersion Int
+  provider String
+  encryptedLink String
+  linkDigest String @unique
+  managedById String @db.Uuid
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  externalClosedAt DateTime? @db.Timestamptz(3)
+  externalClosedById String? @db.Uuid
+  appointment Appointment @relation(fields: [appointmentId], references: [id], onDelete: Restrict)
 }

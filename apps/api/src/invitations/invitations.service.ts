@@ -28,6 +28,7 @@ export class InvitationsService {
     const email = syntheticEmail(input.email);
     if (personId && input.roleCode !== undefined && input.roleCode !== "PATIENT") invalid("PATIENT_ROLE_REQUIRED");
     const roleCode = personId ? "PATIENT" : text(input.roleCode, 2, 50);
+    if (roleCode === "FINANCE") await this.policy.requireCapability(actor, capabilities.financeGrant, "AccountInvitation");
     const displayName = personId ? undefined : text(input.displayName, 3, 120);
     const token = randomBytes(32).toString("base64url");
     const tokenDigest = createHash("sha256").update(token).digest("hex");
@@ -35,6 +36,7 @@ export class InvitationsService {
     const invitation = await prisma.$transaction(async (db) => {
       const now = new Date();
       await this.policy.requireCurrentCapability(db, actor, capability, now);
+      if (roleCode === "FINANCE") await this.policy.requireCurrentCapability(db, actor, capabilities.financeGrant, now);
       const role = await db.role.findUnique({ where: { code: roleCode } });
       if (!role || role.code === "CLINICAL_COORDINATOR" ||
           (personId && (role.isStaff || role.isClinical))) invalid("ROLE_INVALID");

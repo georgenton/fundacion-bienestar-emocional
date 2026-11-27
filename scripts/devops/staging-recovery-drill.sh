@@ -4,8 +4,8 @@ set -euo pipefail
 umask 077
 candidate=${1:-}
 mode=${2-}
-[[ $# -le 2 && ( -z "$mode" || "$mode" = "--from-block2" ) ]] ||
-  { echo 'Usage: staging-recovery-drill.sh [absolute-candidate.json [--from-block2]]' >&2; exit 2; }
+[[ $# -le 2 && ( -z "$mode" || "$mode" = "--from-block2" || "$mode" = "--from-block3" ) ]] ||
+  { echo 'Usage: staging-recovery-drill.sh [absolute-candidate.json [--from-block2|--from-block3]]' >&2; exit 2; }
 cd "$(dirname "$0")/../.."
 
 # Local-only rehearsal. Never use an existing database, network or volume.
@@ -35,6 +35,8 @@ if [[ -n "$candidate" ]]; then
   before=$after
   if [[ "$mode" = "--from-block2" ]]; then
     before=docs/releases/bd5158f3da35fd75043dff15b117d8c1774169a2.json
+  elif [[ "$mode" = "--from-block3" ]]; then
+    before=docs/releases/6cb25913069cc7c73270eba94e3602557f0c682e.json
   fi
   after=$candidate
   block2=true
@@ -47,8 +49,10 @@ src="$prefix-src"
 dst="$prefix-dst"
 api="$prefix-api"
 web="$prefix-web"
+attachments="$prefix-files"
 cleanup() {
   docker rm -f "$api" "$web" "$src" "$dst" >/dev/null 2>&1 || true
+  docker volume rm "$attachments" >/dev/null 2>&1 || true
   docker network rm "$restore_net" "$source_net" >/dev/null 2>&1 || true
   gpgconf --homedir "$work/custodian" --kill gpg-agent >/dev/null 2>&1 || true
   gpgconf --homedir "$work/producer" --kill gpg-agent >/dev/null 2>&1 || true
@@ -56,9 +60,15 @@ cleanup() {
 }
 trap cleanup EXIT
 mkdir "$work"/{custodian,producer,private,restore,transfer,fixtures}
-for net in "$source_net" "$restore_net"; do
-  docker network create --internal "$net" >/dev/null
-done
+create_network() {
+  if [[ -n "$2" ]]; then
+    docker network create --internal --subnet "$2" "$1" >/dev/null
+  else
+    docker network create --internal "$1" >/dev/null
+  fi
+}
+create_network "$source_net" "${FBE_DRILL_SOURCE_SUBNET:-}"
+create_network "$restore_net" "${FBE_DRILL_RESTORE_SUBNET:-}"
 
 export POSTGRES_PASSWORD
 POSTGRES_PASSWORD=$(openssl rand -hex 24)
@@ -123,7 +133,7 @@ INSERT INTO public."AuditEvent" (action, "resourceType", decision, "reasonCode")
 VALUES ('recovery-drill', 'synthetic', 'ALLOWED', 'DRILL');
 SQL
 
-if [[ "$mode" = "--from-block2" ]]; then
+if [[ "$mode" = "--from-block2" || "$mode" = "--from-block3" ]]; then
   db "$src" <<'SQL'
 WITH service AS (
   INSERT INTO public."ServiceDefinition" ("name", "modalities", "durationMinutes", "marginMinutes", "updatedAt")
@@ -151,8 +161,14 @@ gpg --homedir "$work/custodian" --batch --export "$fingerprint" |
 
 started=$(date +%s)
 backup="$work/fbe-drill.gpg"
+if [[ "$mode" = "--from-block3" ]]; then
+  docker run -d --name "$api" --network "$source_net" --network-alias api --platform linux/amd64 \
+    --env-file "$work/private/api.env" -v "$attachments:/workspace/.local/private-attachments" "$(image "$before" api)" >/dev/null
+  export FBE_BACKUP_API_CONTAINER="$api"
+fi
 GNUPGHOME="$work/producer" bash scripts/devops/staging-backup.sh \
   "$src" "$work/private" "$fingerprint" "$backup"
+if [[ "$mode" = "--from-block3" ]]; then docker rm -f "$api" >/dev/null; fi
 cp "$backup" "$work/transfer/recovered.gpg"
 cmp -s "$backup" "$work/transfer/recovered.gpg"
 printf 'capture_and_transfer_seconds=%s ciphertext_bytes=%s\n' \
@@ -185,7 +201,9 @@ SQL
 baseline=$(snapshot "$src")
 fixture_people=8
 if [[ "$mode" = "--from-block2" ]]; then fixture_people=9; fi
-[[ "$baseline" = 3\|"$fixture_people"\|2\|2\|3\|1\|* && "$baseline" = "$(snapshot "$dst")" ]]
+fixture_migrations=3
+if [[ "$mode" = "--from-block3" ]]; then fixture_people=14; fixture_migrations=4; fi
+[[ "$baseline" = "$fixture_migrations"\|"$fixture_people"\|2\|2\|3\|1\|* && "$baseline" = "$(snapshot "$dst")" ]]
 printf 'restore_sql_seconds=%s copy_age_at_restore_seconds=%s\n' \
   "$(( restore_date - started ))" "$(( restore_date - $(<"$work/restore/captured-at") ))"
 
@@ -281,7 +299,7 @@ expect_denial 42501 'TRUNCATE public."AuditEvent";' audit_truncate_denied
 expect_denial P0001 'BEGIN; UPDATE public."AuditEvent" SET action=action; ROLLBACK;' audit_update_denied
 expect_denial P0001 'BEGIN; DELETE FROM public."AuditEvent"; ROLLBACK;' audit_delete_denied
 
-if [[ "$mode" = "--from-block2" ]]; then
+if [[ "$mode" = "--from-block2" || "$mode" = "--from-block3" ]]; then
   appointment_digest() {
     db "$1" <<'SQL'
 SELECT md5(string_agg(id::text || ':' || "caseId"::text || ':' || status::text, ',' ORDER BY id))
@@ -310,11 +328,34 @@ SQL
   expect_denial 42501 'DELETE FROM public."ClinicalNote";' clinical_delete_denied
   expect_denial 42501 'UPDATE public."ClinicalNote" SET "authorId"="authorId";' clinical_author_update_denied
   expect_denial 42501 'UPDATE public."PrivateAttachment" SET sha256=sha256;' attachment_update_denied
+  schema=block3
+  if [[ "$mode" = "--from-block3" ]]; then
+    schema=block4
+    economy_state() {
+      db "$dst" <<'SQL'
+SELECT count(*) FROM public."_prisma_migrations"
+WHERE migration_name='202611270001_economy_portal' AND finished_at IS NOT NULL AND rolled_back_at IS NULL;
+SQL
+    }
+    [[ "$(economy_state)" = 1 ]]
+    [[ "$(runtime_query <<'SQL'
+SELECT has_table_privilege(current_user, 'public."MoneyReceipt"', 'SELECT,INSERT')
+AND has_column_privilege(current_user, 'public."MoneyReceipt"', 'verifiedAt', 'UPDATE')
+AND has_table_privilege(current_user, 'public."ReminderDelivery"', 'SELECT,INSERT')
+AND has_table_privilege(current_user, 'public."VideoMeeting"', 'SELECT,INSERT');
+SQL
+)" = t ]]
+    expect_denial 42501 'UPDATE public."MoneyReceipt" SET "amountMinor"="amountMinor";' payment_amount_update_denied
+    expect_denial 42501 'DELETE FROM public."PaymentApplication";' application_delete_denied
+    expect_denial 42501 'UPDATE public."ReminderDelivery" SET message=message;' delivery_update_denied
+    expect_denial 42501 'UPDATE public."VideoMeeting" SET "encryptedLink"="encryptedLink";' video_link_update_denied
+  fi
   printf 'upgrade_and_functional_check_seconds=%s appointment_preserved=true\n' "$(( $(date +%s) - upgrade_started ))"
   rollback_started=$(date +%s)
   check_images "$before"
   [[ "$(clinical_state)" = 1 && "$(appointment_digest "$dst")" = "$appointment_before" ]]
-  printf 'rollback_and_functional_check_seconds=%s schema_retained=block3\n' "$(( $(date +%s) - rollback_started ))"
+  if [[ "$schema" = block4 ]]; then [[ "$(economy_state)" = 1 ]]; fi
+  printf 'rollback_and_functional_check_seconds=%s schema_retained=%s\n' "$(( $(date +%s) - rollback_started ))" "$schema"
   exit 0
 fi
 
