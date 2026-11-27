@@ -76,7 +76,7 @@ try {
   const tariff = await call(reception, "agenda/catalog/tariffs", { serviceId: service.id, ...amount(4000) });
   const care = await call(reception, "cases", { personId: actors.clinicalPatient.personId, serviceId: service.id, modality: "ONLINE" });
   await call(reception, `cases/${care.id}/assignments`, { professionalId: proId });
-  await button(reception, "Personas").click();
+  await reception.reload();
   await button(reception, "Agenda").click();
   await expand(reception, "Reservar cita");
   await reception.locator('select[name="caseId"]').selectOption(care.id);
@@ -114,7 +114,7 @@ try {
   await cashReceipt.getByRole("checkbox").check();
   await submit(finance, cashReceipt, "Verificar referencia", "economy/commands");
   await expand(cashReceipt, "Aplicar o devolver fondos");
-  const scoped = cashReceipt.locator("form").filter({ has: button(cashReceipt, "Aplicar pago") });
+  const scoped = cashReceipt.locator("form").filter({ has: button(finance, "Aplicar pago") });
   await scoped.locator('select[name="obligationId"]').selectOption(obligation.id);
   await scoped.getByLabel("Importe en centavos USD").fill("2500");
   await submit(finance, scoped, "Aplicar pago", "economy/commands");
