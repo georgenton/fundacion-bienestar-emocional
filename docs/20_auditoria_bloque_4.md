@@ -44,6 +44,8 @@ Las pruebas de auditoría comprueban lectura permitida, lectura denegada, comand
 
 Se fijó `fileParallelism: false` para las suites de integración, porque comparten base y despachador. Las pruebas explícitas de concurrencia mediante `Promise.all` permanecen. La primera corrida positiva terminó con 36 aprobadas, pero Vitest había iniciado antes de guardarse ese ajuste; el CI obligatorio de esta corrección debe acreditar la configuración final. No se repite una corrida local para sustituir ese gate.
 
+La primera ejecución de CI con ese aislamiento detectó una suposición anterior en `access.integration.spec.ts`: recepción esperaba exactamente dos casos en toda la base, aunque otra suite ya había añadido otro. Las otras 35 pruebas aprobaron. Se ajustó la prueba para exigir los dos casos de referencia y la lista cerrada de campos administrativos en cada fila, conservando el rechazo del contenido clínico. No se modificó la política de acceso para resolver ese fallo.
+
 El entorno de auditoría mantiene la limitación de sockets Unix del lanzador `tsx`. Las etapas TypeScript locales usan `node --import tsx`; no se presenta esa equivalencia como una ejecución local del wrapper literal `pnpm demo:verify`. El CI ejecuta los comandos habituales y los recorridos Chromium sobre la aplicación compilada. Sus resultados exactos se identifican en la PR de esta revisión y en el informe de cierre.
 
 ## Límites de la revisión y siguiente paso
