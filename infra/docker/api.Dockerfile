@@ -1,4 +1,4 @@
-FROM node:24.22.3-bookworm-slim AS build
+FROM node:26.13.1-bookworm-slim AS build
 WORKDIR /workspace
 RUN apt-get update && apt-get install -y --no-install-recommends openssl && rm -rf /var/lib/apt/lists/*
 RUN corepack enable && corepack prepare pnpm@10.34.9 --activate
@@ -27,7 +27,7 @@ ENV NODE_ENV=production
 USER node
 CMD ["./node_modules/.bin/prisma", "migrate", "deploy"]
 
-FROM node:24.22.3-bookworm-slim AS runtime
+FROM node:26.13.1-bookworm-slim AS runtime
 ENV NODE_ENV=production
 WORKDIR /workspace
 RUN apt-get update && apt-get install -y --no-install-recommends openssl && rm -rf /var/lib/apt/lists/*
