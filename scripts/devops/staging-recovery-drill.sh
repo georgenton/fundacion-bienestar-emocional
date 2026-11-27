@@ -39,6 +39,8 @@ if [[ -n "$candidate" ]]; then
     before=docs/releases/6cb25913069cc7c73270eba94e3602557f0c682e.json
   fi
   after=$candidate
+  [[ "$(jq -er .source_sha "$before")" != "$(jq -er .source_sha "$after")" ]] ||
+    { echo 'The candidate must differ from the baseline.' >&2; exit 2; }
   block2=true
 fi
 work=$(mktemp -d "${TMPDIR:-/tmp}/fbe-drill.XXXXXXXX")
@@ -98,6 +100,10 @@ CREATE ROLE fbe_runtime LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT PASS
 ALTER DATABASE fbe_staging OWNER TO fbe_migrate;
 REVOKE CREATE ON SCHEMA public FROM PUBLIC;
 GRANT USAGE ON SCHEMA public TO fbe_runtime;
+SQL
+# pg_dump preserves the defaults. Applying them before pg_restore could grant
+# permissions on restored tables that their original ACL never granted.
+cat >"$work/private/source-defaults.sql" <<'SQL'
 ALTER DEFAULT PRIVILEGES FOR ROLE fbe_migrate IN SCHEMA public
   GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO fbe_runtime;
 ALTER DEFAULT PRIVILEGES FOR ROLE fbe_migrate IN SCHEMA public
@@ -121,6 +127,7 @@ cp "$before" "$work/private/release.json"
 function image() { jq -er --arg component "$2" '.images[$component]' "$1"; }
 start_db "$src" "$source_net"
 db "$src" <"$work/private/roles.sql"
+db "$src" <"$work/private/source-defaults.sql"
 docker run --rm --platform linux/amd64 --network "$source_net" \
   --env-file "$work/private/migration.env" "$(image "$before" migrate)"
 docker run --rm --platform linux/amd64 --network "$source_net" \
@@ -318,7 +325,8 @@ SELECT count(*) FROM public."_prisma_migrations"
 WHERE migration_name='202611260002_clinical_records' AND finished_at IS NOT NULL AND rolled_back_at IS NULL;
 SQL
   }
-  [[ "$(clinical_state)" = 1 && "$(appointment_digest "$dst")" = "$appointment_before" ]]
+  [[ "$(clinical_state)" = 1 && "$(appointment_digest "$dst")" = "$appointment_before" ]] ||
+    { echo 'Expected clinical schema and original appointment after migration.' >&2; exit 1; }
   [[ "$(runtime_query <<'SQL'
 SELECT has_table_privilege(current_user, 'public."ClinicalNote"', 'SELECT,INSERT')
 AND has_column_privilege(current_user, 'public."ClinicalNote"', 'narrative', 'UPDATE')
@@ -337,14 +345,14 @@ SELECT count(*) FROM public."_prisma_migrations"
 WHERE migration_name='202611270001_economy_portal' AND finished_at IS NOT NULL AND rolled_back_at IS NULL;
 SQL
     }
-    [[ "$(economy_state)" = 1 ]]
+    [[ "$(economy_state)" = 1 ]] || { echo 'Expected the economy/portal migration.' >&2; exit 1; }
     [[ "$(runtime_query <<'SQL'
 SELECT has_table_privilege(current_user, 'public."MoneyReceipt"', 'SELECT,INSERT')
 AND has_column_privilege(current_user, 'public."MoneyReceipt"', 'verifiedAt', 'UPDATE')
 AND has_table_privilege(current_user, 'public."ReminderDelivery"', 'SELECT,INSERT')
 AND has_table_privilege(current_user, 'public."VideoMeeting"', 'SELECT,INSERT');
 SQL
-)" = t ]]
+)" = t ]] || { echo 'Required runtime privileges are missing.' >&2; exit 1; }
     expect_denial 42501 'UPDATE public."MoneyReceipt" SET "amountMinor"="amountMinor";' payment_amount_update_denied
     expect_denial 42501 'DELETE FROM public."PaymentApplication";' application_delete_denied
     expect_denial 42501 'UPDATE public."ReminderDelivery" SET message=message;' delivery_update_denied
@@ -353,8 +361,12 @@ SQL
   printf 'upgrade_and_functional_check_seconds=%s appointment_preserved=true\n' "$(( $(date +%s) - upgrade_started ))"
   rollback_started=$(date +%s)
   check_images "$before"
-  [[ "$(clinical_state)" = 1 && "$(appointment_digest "$dst")" = "$appointment_before" ]]
-  if [[ "$schema" = block4 ]]; then [[ "$(economy_state)" = 1 ]]; fi
+  [[ "$(clinical_state)" = 1 && "$(appointment_digest "$dst")" = "$appointment_before" ]] ||
+    { echo 'Expected the original appointment and retained clinical schema after rollback.' >&2; exit 1; }
+  if [[ "$schema" = block4 && "$(economy_state)" != 1 ]]; then
+    echo 'Application rollback must retain the economy/portal migration.' >&2
+    exit 1
+  fi
   printf 'rollback_and_functional_check_seconds=%s schema_retained=%s\n' "$(( $(date +%s) - rollback_started ))" "$schema"
   exit 0
 fi
