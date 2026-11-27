@@ -91,13 +91,15 @@ export class PortalService {
           !await db.careCase.findFirst({ where: { id: appointment.caseId, status: "OPEN" }, select: { id: true } }))) unavailable();
       const item = await db.videoMeeting.findUnique({ where: { appointmentId: id },
         select: { ...videoMeta, ...(reveal ? { encryptedLink: true as const } : {}) } });
-      const valid = this.active(appointment, now) && item?.appointmentVersion === appointment.version && !item.externalClosedAt;
+      // Rescheduling creates another appointment. The registration version is
+      // provenance, while recording attendance can advance the same booking.
+      const valid = this.active(appointment, now) && Boolean(item && !item.externalClosedAt);
       if (reveal) {
         if (!valid || !item?.encryptedLink || (responsible && !assigned)) unavailable();
         await audit(db, actor, "VIDEO_PARTICIPANT_LINK", "Appointment", id);
         return { url: revealMeetLink(item.encryptedLink, id) };
       }
-      return { ...meetCapabilities, canManage: assigned, available: Boolean(valid), present: Boolean(item),
+      return { ...meetCapabilities, canManage: assigned, available: valid && (!responsible || assigned), present: Boolean(item),
         externalPending: responsible && Boolean(item && !valid && !item.externalClosedAt),
         externalConfirmedAt: responsible ? item?.externalClosedAt ?? null : null };
     }));
@@ -134,7 +136,7 @@ export class PortalService {
       const item = await db.videoMeeting.findUnique({ where: { appointmentId: id }, select: videoMeta });
       if (!item) unavailable();
       if (item.externalClosedAt) return { id };
-      if (this.active(appointment, now) && item.appointmentVersion === appointment.version) conflict("VIDEO_APPOINTMENT_ACTIVE");
+      if (this.active(appointment, now)) conflict("VIDEO_APPOINTMENT_ACTIVE");
       await db.videoMeeting.update({ where: { appointmentId: id }, data: { externalClosedAt: now, externalClosedById: actor.accountId } });
       await audit(db, actor, "VIDEO_EXTERNAL_CONFIRMATION", "Appointment", id);
       return { id };

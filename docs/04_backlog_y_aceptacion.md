@@ -144,6 +144,8 @@ Empezar con enlaces administrados por cita y una interfaz de proveedor que permi
 
 FBE-013 a FBE-015 quedaron verificados en staging sintético, incluido un disparo real del despachador. FBE-016 tiene verificado el recorrido de aplicación y conserva pendientes los ensayos con cuentas y participantes autorizados en el proveedor. La [evidencia del bloque 4](19_evidencia_bloque_4.md) identifica el despliegue, las comprobaciones y los comandos de reproducción.
 
+La [auditoría posterior del bloque 4](20_auditoria_bloque_4.md) identifica y corrige tres casos adicionales de recordatorios, acceso a video y trazabilidad financiera. Su presencia en staging se comprueba por la versión promovida, separadamente de la integración en GitHub. El [siguiente encargo](../prompts/09_cierre_verificacion_y_preparacion_piloto.md) prepara el cierre de verificación y la revisión institucional de FBE-020.
+
 ## Bloque 5 — Operación y apertura controlada del piloto
 
 **Objetivo:** comprobar que la plataforma puede operarse, recuperarse y mantenerse en el entorno previsto.

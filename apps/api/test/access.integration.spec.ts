@@ -103,7 +103,15 @@ describe("PostgreSQL identity and access demonstration", () => {
   it("lets reception see operational overviews but never clinical content", async () => {
     const cookie = await authenticatedCookie(fixtures.actors.reception!);
     const listed = await request(app.getHttpServer()).get("/api/cases").set("Cookie", cookie);
-    expect(listed.body).toHaveLength(2);
+    expect(listed.status).toBe(200);
+    // Other integration journeys may have added cases to the shared database.
+    // Reception can list operational metadata, but never clinical fields.
+    expect(listed.body.map((item: { id: string }) => item.id)).toEqual(
+      expect.arrayContaining([fixtures.cases.caseA, fixtures.cases.caseB]),
+    );
+    for (const item of listed.body) {
+      expect(Object.keys(item).sort()).toEqual(["id", "modality", "referenceCode", "serviceId", "status"]);
+    }
     expect(
       (await request(app.getHttpServer()).get(`/api/cases/${fixtures.cases.caseB}/overview`).set("Cookie", cookie)).status,
     ).toBe(200);
