@@ -1,0 +1,8 @@
+[Unit]
+Description=Dispatch private synthetic FBE portal reminders
+After=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/bash /opt/fbe-staging/scripts/devops/staging-reminder-dispatch.sh
+TimeoutStartSec=40s

@@ -24,10 +24,15 @@ import { ConsentsService } from "./clinical/consents.service.js";
 import { DocumentsService } from "./clinical/documents.service.js";
 import { PracticesService } from "./clinical/practices.service.js";
 
+import { EconomyController } from "./economy/economy.controller.js";
+import { EconomyService } from "./economy/economy.service.js";
+import { PortalController } from "./portal/portal.controller.js";
+import { PortalService } from "./portal/portal.service.js";
+
 @Module({
   controllers: [HealthController, MeController, CasesController, AccountsController, InvitationsController,
-    PeopleCasesController, CatalogController, AppointmentsController, ClinicalController],
+    PeopleCasesController, CatalogController, AppointmentsController, ClinicalController, EconomyController, PortalController],
   providers: [SessionGuard, AccessPolicyService, AccountsService, InvitationsService, PeopleCasesService, CatalogService, AppointmentsService,
-    ClinicalCoordinationService, ClinicalRecordsService, ConsentsService, DocumentsService, PracticesService],
+    ClinicalCoordinationService, ClinicalRecordsService, ConsentsService, DocumentsService, PracticesService, EconomyService, PortalService],
 })
 export class AppModule {}

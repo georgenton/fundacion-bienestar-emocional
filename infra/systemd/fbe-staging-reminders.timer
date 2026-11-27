@@ -1,0 +1,10 @@
+[Unit]
+Description=Periodically dispatch private synthetic FBE portal reminders
+
+[Timer]
+OnCalendar=*-*-* *:00/2:00 UTC
+AccuracySec=5s
+Persistent=true
+
+[Install]
+WantedBy=timers.target

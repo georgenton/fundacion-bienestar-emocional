@@ -51,6 +51,9 @@ importers:
       '@fbe/database':
         specifier: workspace:*
         version: link:../../packages/database
+      '@fbe/worker':
+        specifier: workspace:*
+        version: link:../worker
       '@nestjs/common':
         specifier: 12.6.0
         version: 12.6.0(reflect-metadata@0.2.2)(rxjs@7.8.2)
@@ -82,9 +85,6 @@ importers:
       '@better-auth/utils':
         specifier: 0.5.1
         version: 0.5.1
-      '@fbe/worker':
-        specifier: workspace:*
-        version: link:../worker
       '@nestjs/testing':
         specifier: 12.6.0
         version: 12.6.0(@nestjs/common@12.6.0(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@12.6.0)(@nestjs/platform-express@12.6.0)

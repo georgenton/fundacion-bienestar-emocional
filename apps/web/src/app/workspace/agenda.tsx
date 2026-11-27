@@ -5,6 +5,8 @@ import { dateLabel, explain, localDay, modalities, moveDay, tariffLabel, timeLab
   type CaseSummary, type Catalog, type Modality, type Professional } from "../../lib/operations";
 import { field, ProfessionalOptions, SubmitForm, type Requester } from "./common";
 
+import { VideoAccess } from "./portal";
+
 type Appointment = {
   id: string; caseId: string; startsAt: string; endsAt: string; occupiedUntil: string;
   professionalId: string; serviceName: string; modality: Modality;
@@ -114,17 +116,20 @@ export function Agenda({
         return items.length ? <div key={date} className="agenda-day">
           <h3>{days.format(new Date(`${date}T00:00:00Z`))}</h3>
           {items.map(item => <AppointmentCard key={item.id} item={item} canManage={canManage}
-            professionals={eligible(item.caseId)} mutate={mutate} />)}
+            professionals={eligible(item.caseId)} mutate={mutate} request={request} />)}
         </div> : null;
       })}
     </section>
   );
 }
 
-function AppointmentCard({ item, canManage, professionals, mutate }: {
+function AppointmentCard({ item, canManage, professionals, mutate, request }: {
   item: Appointment; canManage: boolean; professionals: Professional[];
-  mutate: (route: string, input: object) => Promise<Appointment>;
+  mutate: (route: string, input: object) => Promise<Appointment>; request: Requester;
 }) {
+  const [video, setVideo] = useState(false);
+  const [obligation, setObligation] = useState(false);
+  const financeKey = useRef<string>(undefined);
   const edit = canManage && item.attendance === "UNRECORDED";
   return (
     <article className="record appointment" data-appointment-status={item.status}>
@@ -139,6 +144,16 @@ function AppointmentCard({ item, canManage, professionals, mutate }: {
       {item.previousId ? <p>Reprogramada desde una cita anterior</p> : null}
       {item.cancellationParty ? <p>Cancelación atribuida a {attributions[item.cancellationParty].toLowerCase()}.</p> : null}
       {item.attendance !== "UNRECORDED" ? <p>{item.attendance === "ATTENDED" ? "Asistencia registrada" : "Ausencia del paciente registrada"}</p> : null}
+      {canManage && item.status === "CONFIRMED" && <SubmitForm label="Registrar obligación" submit={async () => {
+        financeKey.current ??= crypto.randomUUID();
+        await request("economy/commands", { action: "OBLIGATION", appointmentId: item.id, requestId: financeKey.current });
+        setObligation(true);
+        return "Obligación disponible en Economía.";
+      }}><p>{obligation ? "Obligación registrada." : "Usa el precio de la cita."}</p></SubmitForm>}
+      {!canManage && item.modality === "ONLINE" && <>
+        <button type="button" className="secondary" onClick={() => setVideo(value => !value)}>Videoconsulta</button>
+        {video && <VideoAccess key={item.version} request={request} id={item.id} />}
+      </>}
       {edit && (item.status === "HELD" || item.status === "CONFIRMED") ? <details className="action-details">
         <summary>Acciones de cita</summary>
         {item.status === "HELD" ? <SubmitForm label="Confirmar cita" submit={async () => {

@@ -28,7 +28,7 @@ export async function createApp() {
     response.setHeader("X-Content-Type-Options", "nosniff");
     next();
   };
-  express.use("/api/clinical", clinicalHeaders);
+  express.use(["/api/clinical", "/api/economy", "/api/portal"], clinicalHeaders);
   express.use(json({ limit: "64kb" }));
 
   app.useGlobalFilters(new SafeExceptionFilter(logger));

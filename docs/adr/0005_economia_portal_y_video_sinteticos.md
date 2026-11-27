@@ -1,0 +1,29 @@
+# ADR 0005 · Economía, portal y video sintéticos
+
+**Estado:** adoptado para el entorno sintético. Fecha: 27 de noviembre de 2026.
+
+## Libro económico y permisos
+
+La obligación conserva la moneda y el importe de la primera cita de la cadena `previousId`. Registrar la obligación de una cita reemplazada devuelve esa misma obligación. Una tarifa posterior solo afecta reservas independientes posteriores. El saldo resta al importe pactado la solidaridad aprobada y los pagos aplicados netos de devoluciones ejecutadas. Cita, asistencia, atención, documentación y economía tienen estados independientes.
+
+Los importes se representan en centavos USD enteros. Cada movimiento admite entre 1 y 100 000 000 centavos. El dato declarado se registra separado de su verificación y de cada aplicación. Una donación tiene un registro propio que no admite aplicaciones a obligaciones. Recepción puede registrar, consultar y preparar solidaridad. Finanzas añade verificación, conciliación, aprobación y ejecución de prueba. Administración operativa puede invitar explícitamente a la función financiera. Los usuarios de personal requieren MFA. Los permisos se verifican con el estado vigente del servidor. El paciente ve su saldo y sus declaraciones y comprobantes propios. El profesional consulta los cierres aprobados que le corresponden. El pagador puede ser una persona sin cuenta y su pago no concede acceso al expediente.
+
+Las mutaciones usan la transacción de agenda y su bloqueo consultivo de PostgreSQL. Se registra una huella de los parámetros y un resultado por actor y clave de idempotencia. Las restricciones detectan referencias duplicadas y eliminan la doble inclusión de un movimiento en liquidación. Runtime puede insertar los movimientos y cambiar las columnas de transición expresamente concedidas. El comprobante comparte el volumen privado y la instantánea de adjuntos, con autorización financiera y el límite vigente de 16 KiB para `.txt` UTF-8.
+
+La devolución reserva una parte del saldo sin aplicar o de una aplicación concreta. Rechazarla libera la reserva. Ejecutarla en la simulación reabre el saldo de la obligación por la parte aplicada devuelta. La liquidación sintética `SYNTHETIC_NET_V1` toma aplicaciones correspondientes al profesional de la cita vigente con asistencia `ATTENDED`, con independencia de las notas clínicas. Guarda los puntos básicos y los resultados por movimiento. El único redondeo es al centavo más próximo, con el medio centavo hacia arriba, mediante aritmética entera: `(importe × puntos básicos + 5000) div 10000`. Para un ajuste por devolución se restan dos totales redondeados acumulados al porcentaje de la aplicación original. Así se reversa la comisión exacta aunque haya varios ajustes o cambie el porcentaje de un cierre posterior. El comprobante administrativo se rotula como constancia sintética sin validez tributaria.
+
+## Portal y despacho
+
+Se conserva la interfaz existente en español y sus fechas en `America/Guayaquil`. La preferencia explícita autoriza la bandeja privada de pruebas. Un trabajo persistente contiene el identificador y la versión de la cita, el destinatario y los tiempos programado, intentado y entregado. Se programa aproximadamente 24 horas antes, o para el próximo despacho si falta menos. El ejecutor usa el bloqueo de agenda y confirma cita actual, versión, horario, cuenta, participación y preferencia. Entrega y transición se confirman juntas en PostgreSQL, con una sola entrega por trabajo.
+
+El artefacto de la API incluye un comando de ejecución única. En staging, un timer de systemd lo invoca cada dos minutos en la API sana del manifiesto activo. El comando requiere modo sintético y seed deshabilitado. La bandeja se consulta dentro del portal y el ejecutor solo registra contadores agregados. El transporte no usa Graph ni el correo de los monitores.
+
+## Enlaces administrados
+
+El adaptador acepta únicamente enlaces HTTPS de participante con el formato de Google Meet declarado en código. El anfitrión usa su acceso separado en el proveedor. No se emiten invitaciones, no hay servidor de video y no se registran enlaces de anfitrión. El enlace de participante se cifra con AES-GCM y una clave derivada del secreto de la aplicación. Recuperar una copia requiere la configuración de runtime correspondiente, custodiada por separado. El servidor entrega el enlace únicamente después de revalidar participación o asignación y estado de la cita. Abrirlo no cambia asistencia, documentación ni dinero.
+
+El profesional debe comprobar admisión, grabación, transcripción y resúmenes en su cuenta antes de registrar el enlace. Al cancelar o reprogramar, el portal oculta el acceso anterior y muestra al responsable una tarea externa. El profesional confirma en la aplicación únicamente tras observar el cierre o invalidación en el proveedor. Para una pérdida de conexión, el participante vuelve a entrar desde la cita vigente. Si el acceso falla de nuevo, se coordina por recepción una reprogramación sintética y se usa un enlace nuevo.
+
+Los límites publicados dependen de cuenta y participantes. La documentación de Meet indica hasta 24 horas para uno a uno y un máximo de 60 minutos para reuniones grupales en cuentas personales, sujeto al producto efectivo. Teams Free publica un máximo de 60 minutos por reunión. La evidencia del bloque registra por separado el estado de verificación de cuentas y las pruebas del proveedor. [Límites oficiales de Google Meet](https://support.google.com/meet/answer/7317473?hl=en) · [Límites oficiales de Microsoft Teams Free](https://support.microsoft.com/en-us/teams/free/get-started/learn-more-about-subscriptions-for-microsoft-teams-free).
+
+Las tarifas, becas, condiciones de devolución, porcentajes, textos y responsabilidades definitivas permanecen para validación institucional. El bloque usa únicamente simulaciones.

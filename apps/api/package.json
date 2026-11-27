@@ -15,6 +15,7 @@
     "@fbe/access-policy": "workspace:*",
     "@fbe/config": "workspace:*",
     "@fbe/database": "workspace:*",
+    "@fbe/worker": "workspace:*",
     "@nestjs/common": "12.6.0",
     "@nestjs/core": "12.6.0",
     "@nestjs/platform-express": "12.6.0",
@@ -26,7 +27,6 @@
     "rxjs": "7.8.2"
   },
   "devDependencies": {
-    "@fbe/worker": "workspace:*",
     "@better-auth/utils": "0.5.1",
     "@nestjs/testing": "12.6.0",
     "@types/cors": "2.8.19",

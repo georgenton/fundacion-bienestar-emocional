@@ -34,6 +34,11 @@ export const capabilities = {
   agendaManage: "agenda:manage",
   agendaConfigure: "agenda:configure",
   clinicalCoordinate: "case:clinical:coordinate",
+  financeRegister: "finance:register",
+  financeVerify: "finance:verify",
+  financeApprove: "finance:approve",
+  financeExecute: "finance:execute",
+  financeGrant: "finance:grant",
   practiceCoordinate: "practice:coordinate",
 } as const;
 

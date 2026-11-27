@@ -9,7 +9,10 @@ import { People } from "./people";
 import { ClinicalWorkspace } from "./clinical/workspace";
 import { Practices } from "./clinical/practices";
 
-type Pane = "people" | "cases" | "agenda" | "catalog" | "clinical" | "practices";
+import { EconomyPane } from "./economy";
+import { ReminderInbox } from "./portal";
+
+type Pane = "people" | "cases" | "agenda" | "catalog" | "clinical" | "practices" | "economy" | "reminders";
 type SessionScope = { capabilities: string[]; roleCodes: string[] };
 const emptyCatalog: Catalog = { services: [], professionals: [], timezone: "America/Guayaquil" };
 
@@ -65,6 +68,8 @@ export function Workspace({ onSessionError }: { onSessionError: (code: string) =
   const canConfigure = scope?.capabilities.includes("agenda:configure");
   const coordinator = scope?.capabilities.includes("case:clinical:coordinate") ?? false;
   const clinical = coordinator || scope?.roleCodes.some(role => ["PATIENT", "PROFESSIONAL", "SUPERVISOR", "INTERN"].includes(role));
+  const patient = scope?.roleCodes.includes("PATIENT") ?? false;
+  const economy = patient || scope?.roleCodes.includes("PROFESSIONAL") || scope?.capabilities.includes("finance:register");
   const practices = coordinator || scope?.roleCodes.some(role => ["SUPERVISOR", "INTERN"].includes(role));
 
   async function selectPane(next: Pane, bookingCase = "") {
@@ -88,6 +93,8 @@ export function Workspace({ onSessionError }: { onSessionError: (code: string) =
     ...(canSeeAgenda ? [["agenda", "Agenda"]] as [Pane, string][] : []),
     ...(clinical ? [["clinical", scope.roleCodes.includes("PATIENT") ? "Consentimientos y documentos" : "Expediente"]] as [Pane, string][] : []),
     ...(practices ? [["practices", "Prácticas y horas"]] as [Pane, string][] : []),
+    ...(economy ? [["economy", "Economía"]] as [Pane, string][] : []),
+    ...(patient ? [["reminders", "Recordatorios"]] as [Pane, string][] : []),
     ...(canConfigure ? [["catalog", "Configuración"]] as [Pane, string][] : []),
   ];
 
@@ -104,6 +111,8 @@ export function Workspace({ onSessionError }: { onSessionError: (code: string) =
         canManage={canManageAgenda} initialCase={initialCase} cases={cases} /> : null}
       {pane === "clinical" && clinical ? <ClinicalWorkspace cases={cases} roles={scope.roleCodes} coordinator={coordinator} request={request} /> : null}
       {pane === "practices" && practices ? <Practices request={request} coordinator={coordinator} /> : null}
+      {pane === "economy" && economy ? <EconomyPane request={request} capabilities={scope.capabilities} patient={patient} /> : null}
+      {pane === "reminders" && patient ? <ReminderInbox request={request} /> : null}
       {pane === "catalog" && canConfigure ? <CatalogPane request={request} catalog={catalog} reload={reloadCatalog} /> : null}
     </div>
   );

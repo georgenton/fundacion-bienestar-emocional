@@ -22,6 +22,11 @@ const browserPhases = {
     "registrar persona sin cuenta, buscarla y abrir caso", "asignar profesional e invitar a la persona",
     "reservar, confirmar, reprogramar y cancelar la cita", "activar en móvil y acceder al mismo caso",
   ],
+  "browser-block-4": [
+    "sesiones de prueba", "reservar y registrar obligación desde agenda",
+    "declarar pago y descargar comprobante privado", "verificar y aplicar importe parcial",
+    "consultar liquidación profesional", "enlace administrado y revocación local del turno",
+  ],
   "browser-block-3": [
     "sesiones", "preparar cita con las operaciones del bloque 2", "asignación y práctica de simulación",
     "aceptar dos finalidades desde el portal móvil",
@@ -173,6 +178,8 @@ try {
   await run(process.execPath, ["scripts/verify-block2-browser.mjs"], env);
   phase = "browser-block-3";
   await run(process.execPath, ["scripts/verify-block3-browser.mjs"], env);
+  phase = "browser-block-4";
+  await run(process.execPath, ["scripts/verify-block4-browser.mjs"], env);
 } catch {
   failure = phase;
 } finally {
@@ -197,5 +204,5 @@ if (failure || interrupted) {
   console.error(`Synthetic browser CI failed at ${interrupted ? "interrupted" : failure}${knownPhase ? `; UI phase: ${knownPhase}` : ""}. Private output scan: ${scanStatus}. Raw logs are not uploaded.`);
   process.exitCode = 1;
 } else {
-  console.log("Synthetic Chromium journeys passed against compiled API and web: blocks 2 and 3, desktop and mobile viewport. Private output scan passed.");
+  console.log("Synthetic Chromium journeys passed against compiled API and web: blocks 2, 3 and 4, desktop and mobile viewport. Private output scan passed.");
 }

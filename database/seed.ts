@@ -15,6 +15,7 @@ if (!config.allowSyntheticSeed || config.appEnv === "production" || !config.synt
 }
 
 const roles = [
+  { code: "FINANCE", description: "Finanzas sintéticas", isStaff: true, isClinical: false },
   { code: "CLINICAL_COORDINATOR", description: "Coordinación por caso sin lectura clínica implícita", isStaff: true, isClinical: true },
   { code: "OPERATIONS_ADMIN", description: "Administración operativa sin acceso clínico", isStaff: true, isClinical: false },
   { code: "RECEPTION", description: "Recepción y vista operativa", isStaff: true, isClinical: false },
@@ -26,6 +27,11 @@ const roles = [
 ] as const;
 
 const capabilityDefinitions = [
+  [capabilities.financeRegister, "Registrar obligaciones y declaraciones"],
+  [capabilities.financeVerify, "Verificar y aplicar pagos"],
+  [capabilities.financeApprove, "Aprobar movimientos"],
+  [capabilities.financeExecute, "Confirmar ejecución simulada"],
+  [capabilities.financeGrant, "Invitar integrantes de finanzas"],
   ["case:list:all", "Lista operativa mínima de casos"],
   ["case:overview:read", "Vista operativa sin contenido clínico"],
   ["account:disable", "Desactivar cuentas e invalidar sesiones"],
@@ -47,8 +53,9 @@ const blockTwoCapabilities = [
 ];
 
 const roleCapabilities: Record<string, string[]> = {
-  OPERATIONS_ADMIN: ["case:list:all", "account:disable", "account:invite", "audit:read", ...blockTwoCapabilities],
-  RECEPTION: ["case:list:all", "case:overview:read", ...blockTwoCapabilities],
+  FINANCE: [capabilities.financeRegister, capabilities.financeVerify, capabilities.financeApprove, capabilities.financeExecute],
+  OPERATIONS_ADMIN: [capabilities.financeGrant, "case:list:all", "account:disable", "account:invite", "audit:read", ...blockTwoCapabilities],
+  RECEPTION: [capabilities.financeRegister, "case:list:all", "case:overview:read", ...blockTwoCapabilities],
   CLINICAL_COORDINATOR: [capabilities.clinicalCoordinate, capabilities.practiceCoordinate, capabilities.caseListAll, capabilities.caseOverviewRead],
   PROFESSIONAL: [],
   SUPERVISOR: [],
@@ -58,6 +65,7 @@ const roleCapabilities: Record<string, string[]> = {
 };
 
 const actorDefinitions = [
+  ["finance", "Finanzas Sintéticas", "finance@example.test", "FINANCE"],
   ["clinicalCoordinator", "Coordinación Clínica Sintética", "coordination@example.test", "CLINICAL_COORDINATOR"],
   ["operationsAdmin", "Administración Operativa Sintética", "operations.admin@example.test", "OPERATIONS_ADMIN"],
   ["reception", "Recepción Sintética", "reception@example.test", "RECEPTION"],

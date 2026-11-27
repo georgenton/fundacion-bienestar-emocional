@@ -142,6 +142,8 @@ Empezar con enlaces administrados por cita y una interfaz de proveedor que permi
 
 **Salida del bloque:** recorrido integral sintético con paciente, profesional y recepción; estados de pago y video verificables.
 
+La implementación sintética y los comandos de FBE-013 a FBE-016 se detallan en la [evidencia del bloque 4](19_evidencia_bloque_4.md). FBE-016 conserva como criterios independientes las pruebas con cuentas y participantes autorizados en el proveedor.
+
 ## Bloque 5 — Operación y apertura controlada del piloto
 
 **Objetivo:** comprobar que la plataforma puede operarse, recuperarse y mantenerse en el entorno previsto.
